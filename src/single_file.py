@@ -33,7 +33,7 @@ def transform_coordinates(query: str) -> str:
 
 
 llm = ChatGoogleGenerativeAI(
-    model="models/gemini-2.0-flash",
+    model="models/gemini-2.5-flash",
     temperature=0,
     max_tokens=None,
     timeout=None,
