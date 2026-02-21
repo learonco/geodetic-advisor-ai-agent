@@ -1,5 +1,11 @@
-from src.tools import search_crs_objects
+import sys
+from pathlib import Path
 
-r = search_crs_objects.run({'bbox': {'north': -36.0523344, 'west': -71.9666079, 'south': -41.1006358, 'east': -67.9962632}, 'object_type': ['GEODETIC_REFERENCE_FRAME']})
+# Add the parent directory to the path so we can import tools
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from tools import geodesy
+
+r = geodesy.search_crs_objects.run({'bbox': {'north': -36.0523344, 'west': -71.9666079, 'south': -41.1006358, 'east': -67.9962632}, 'object_type': ['GEODETIC_REFERENCE_FRAME']})
 
 print(r)
