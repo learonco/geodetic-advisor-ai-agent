@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from tools import (
     get_bbox_from_areaname,
     lookup_crs,
-    search_crs_by_bbox,
+    search_crs_objects,
     transform_coordinates,
 )
 
@@ -18,7 +18,7 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=os.getenv("GEMINI_API_KEY"),
 )
 
-tools = [lookup_crs, transform_coordinates, get_bbox_from_areaname, search_crs_by_bbox]
+tools = [lookup_crs, transform_coordinates, get_bbox_from_areaname, search_crs_objects]
 
 geodetic_agent = create_agent(
     tools=tools,
@@ -29,7 +29,14 @@ geodetic_agent = create_agent(
         Use the EPSG Geodetic Parameter Registry and the provided tools to answer questions about coordinate reference systems, transformations, and geodetic metadata.
 
         Example:
-        - If the user ask for a CRS or other geodetic object related to a specific area, first use get_bbox_from_areaname to get the bounding box, then use search_crs_by_bbox to find applicable CRS objects for that area.
+        - If the user ask for a any CRS or other geodetic object by a specific area,
+            irst use get_bbox_from_areaname to get the bounding box,
+            then use search_crs_objects to find applicable CRS objects for that area.
+        - If the user ask for a any CRS or other geodetic object by its name,
+            use search_crs_objects and use the name provided in the object_name parameter.
+        - If the user ask for a any CRS or other geodetic object by its area of use,
+            then use search_crs_objects using the text provided in the object_area_of_use parameter;
+            optionally use the bounding box as well to narrow down results using function get_bbox_from_areaname to get the bounding box
         - If the user ask for a specific EPSG code, use lookup_crs to get its metadata.
         - If the user ask for coordinate transformation, use transform_coordinates with the format x,y,from_epsg,to_epsg.
         """
@@ -50,8 +57,15 @@ geodetic_agent = create_agent(
 response = geodetic_agent.invoke({
     "messages": [
         {"role": "user",
-         "content": "Create a list of all the applicable geodetic reference frames for Argentina."}
+         "content": "List the names of the applicable datums for Neuquen."}
     ]
 })
+
+# response = geodetic_agent.invoke({
+#     "messages": [
+#         {"role": "user",
+#          "content": "Get me the details of the datum Campo Inchauspe."}
+#     ]
+# })
 
 print(response["messages"])

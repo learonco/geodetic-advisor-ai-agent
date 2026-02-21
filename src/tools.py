@@ -7,9 +7,10 @@ from pyproj.enums import PJType
 
 
 @tool
-def search_crs_by_bbox(bbox: dict,
+def search_crs_objects(bbox: dict=None,
                        object_type: PJType | list[PJType] | None=None,
-                       filter_text: str=None) -> list:
+                       object_name: str=None,
+                       object_area_of_use: str=None) -> list:
     """Returns all applicable CRS objects for the given area of interest, including geographic,
     projected, vertical, and other types.
     Use this after getting bbox coordinates from get_bbox_from_areaname. The areaname can be user as filter_text to narrow down results.
@@ -19,19 +20,23 @@ def search_crs_by_bbox(bbox: dict,
             A dictionary object representing the geographic area with keys: west, south, east, north.
         object_type : pyproj.enums.PJType or list[pyproj.enums.PJType] or None
             Optional filter for specific CRS types. Defaults to None.
-        filter_text : str, optional
-            A string to filter results by area name. Defaults to None.
+        object_name : str, optional
+            A string to filter results by CRS name. Defaults to None.
+        object_area_of_use : str, optional
+            A string to filter results by area of use. Defaults to None.
 
     Returns:
         list
             A list of CRS objects applicable to the given area.
     """
-    aoi_bbox = aoi.AreaOfInterest(
-        west_lon_degree=float(bbox['west']),
-        south_lat_degree=float(bbox['south']),
-        east_lon_degree=float(bbox['east']),
-        north_lat_degree=float(bbox['north'])
-    )
+    aoi_bbox = None
+    if bbox:
+        aoi_bbox = aoi.AreaOfInterest(
+            west_lon_degree=float(bbox['west']),
+            south_lat_degree=float(bbox['south']),
+            east_lon_degree=float(bbox['east']),
+            north_lat_degree=float(bbox['north'])
+        )
 
     crs_list = database.query_crs_info(
         area_of_interest=aoi_bbox,
@@ -40,11 +45,12 @@ def search_crs_by_bbox(bbox: dict,
         allow_deprecated=False
     )
 
-    if filter_text:
+    if object_name or object_area_of_use:
         crs_list = [
             crs
             for crs in crs_list
-            if filter_text.lower() in crs.area_of_use.name.lower()
+            if (not object_name or object_name.lower() in crs.name.lower())
+            and (not object_area_of_use or object_area_of_use.lower() in crs.area_of_use.name.lower())
         ]
 
     return crs_list
