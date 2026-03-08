@@ -34,7 +34,7 @@ def create_base_map(center: Tuple[float, float] = (20, 0), zoom: int = 2) -> fol
             'circle': False,
             'circlemarker': False,
             'rectangle': True,
-            'polygon': False
+            'polygon': True
         }
     )
     draw.add_to(m)
