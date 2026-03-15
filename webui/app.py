@@ -42,18 +42,47 @@ st.set_page_config(
 # Custom CSS for layout
 st.markdown("""
 <style>
+    * {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    [data-testid="stAppViewContainer"] {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+        padding: 0 !important;
+    }
+    [data-testid="stHeader"] {
+        display: none;
+    }
+    [data-testid="stMainBlockContainer"] {
+        padding: 32px 32px 32px 32px !important;
+        margin: 0 !important;
+    }
+    [data-testid="stVerticalBlock"] {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    [data-testid="stColumn"] {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    section {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stForm"] {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
     .main {
         display: flex;
         flex-direction: row;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 5px;
     }
-    .chat-section {
-        width: 35%;
+    [data-testid="stColumns"] > [data-testid="column"]:nth-child(1) {
         border-right: 2px solid #ddd;
-        padding: 20px;
-    }
-    .map-section {
-        width: 65%;
-        padding: 20px;
     }
 </style>
 """, unsafe_allow_html=True)
