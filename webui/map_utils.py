@@ -1,10 +1,11 @@
 """Map utilities for Folium visualization and interaction."""
 
+import re
+
+from typing import Dict, List, Optional, Tuple
+
 import folium
 from folium.plugins import Draw
-import json
-from typing import Tuple, List, Dict, Optional
-import re
 
 
 def create_base_map(center: Tuple[float, float] = (20, 0), zoom: int = 2) -> folium.Map:
@@ -27,7 +28,7 @@ def create_base_map(center: Tuple[float, float] = (20, 0), zoom: int = 2) -> fol
 
     # Add draw tools
     draw = Draw(
-        export=True,
+        export=False,
         position='topleft',
         draw_options={
             'polyline': False,

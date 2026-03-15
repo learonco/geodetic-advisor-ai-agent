@@ -4,27 +4,22 @@ import os
 import sys
 from pathlib import Path
 
+import streamlit as st
+from streamlit_folium import st_folium
+
+from webui.chat_utils import (
+    detect_map_relevant_response,
+    extract_tool_calls,
+    invoke_geodetic_agent,
+)
+from webui.map_utils import (
+    add_bbox_rectangle,
+    create_base_map,
+)
+
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-import streamlit as st
-from streamlit_folium import st_folium
-import folium
-from webui.chat_utils import (
-    invoke_geodetic_agent,
-    extract_tool_calls,
-    detect_map_relevant_response,
-    format_agent_response,
-    format_message_for_display
-)
-from webui.map_utils import (
-    create_base_map,
-    add_bbox_rectangle,
-    extract_coordinates_from_clicks,
-    extract_bbox_from_geometry,
-    parse_crs_search_results
-)
 
 # Suppress Streamlit warnings and prompts
 os.environ["STREAMLIT_CLIENT_SHOWERRORDETAILS"] = "false"
@@ -55,7 +50,7 @@ st.markdown("""
         display: none;
     }
     [data-testid="stMainBlockContainer"] {
-        padding: 32px 32px 32px 32px !important;
+        padding: 16px 32px 32px 32px !important;
         margin: 0 !important;
     }
     [data-testid="stVerticalBlock"] {
@@ -104,7 +99,13 @@ if "processed_drawings" not in st.session_state:
     st.session_state.processed_drawings = set()
 
 if "selected_crs_types" not in st.session_state:
-    st.session_state.selected_crs_types = ["All Types"]
+    st.session_state.selected_crs_types = [
+        "Projected CRS",
+        "Geographic CRS",
+        "Vertical CRS",
+        "Compound CRS",
+        "Geodetic Reference Frame"
+    ]
 
 
 # Title and description
@@ -222,12 +223,9 @@ with col_map:
     st.subheader("🗺️  Interactive Map")
 
     # Instructions
-    st.info("💡 **How to use the map:**\n- Use the Draw tool (top-left) to draw a rectangle for CRS search\n- Click on markers to see CRS details")
+    st.info("💡 **How to use:** Draw a rectangle to search CRS • Click markers for details")
 
-    # CRS Type Filter
-    st.markdown("**Filter CRS Types:**")
     crs_type_options = [
-        "All Types",
         "Projected CRS",
         "Geographic CRS",
         "Vertical CRS",
@@ -238,12 +236,12 @@ with col_map:
     selected_types = st.multiselect(
         "Select CRS types to include in search:",
         options=crs_type_options,
-        default=["All Types"],
+        default=crs_type_options,
         key="crs_type_filter"
     )
 
     # Store in session state
-    st.session_state.selected_crs_types = selected_types if selected_types else ["All Types"]
+    st.session_state.selected_crs_types = selected_types if selected_types else crs_type_options
 
     # Create base map
     m = create_base_map(center=(20, 0), zoom=2)
@@ -254,7 +252,7 @@ with col_map:
         m = add_bbox_rectangle(m, bbox, color='red')
 
     # Render map and get interaction data
-    map_data = st_folium(m, width=700, height=600)
+    map_data = st_folium(m, width=1200, height=500)
 
     # Process map interactions
     if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
@@ -296,7 +294,7 @@ with col_map:
 
                                 # Include selected CRS types in query
                                 crs_types_str = ""
-                                if st.session_state.selected_crs_types and st.session_state.selected_crs_types != ["All Types"]:
+                                if st.session_state.selected_crs_types:
                                     types_list = ", ".join(st.session_state.selected_crs_types)
                                     crs_types_str = f" Filter by types: {types_list}."
 
