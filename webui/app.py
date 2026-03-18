@@ -4,22 +4,22 @@ import os
 import sys
 from pathlib import Path
 
+# Add the project root to Python path BEFORE importing modules
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 import streamlit as st
 from streamlit_folium import st_folium
 
-from webui.chat_utils import (
+from chat_utils import (
     detect_map_relevant_response,
     extract_tool_calls,
     invoke_geodetic_agent,
 )
-from webui.map_utils import (
+from map_utils import (
     add_bbox_rectangle,
     create_base_map,
 )
-
-# Add the project root to Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 # Suppress Streamlit warnings and prompts
 os.environ["STREAMLIT_CLIENT_SHOWERRORDETAILS"] = "false"
@@ -56,10 +56,16 @@ st.markdown("""
     [data-testid="stVerticalBlock"] {
         padding: 0 !important;
         margin: 0 !important;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     [data-testid="stColumn"] {
         padding: 0 !important;
         margin: 0 !important;
+    }
+    p, span, div {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     section {
         padding: 0 !important;
@@ -78,6 +84,18 @@ st.markdown("""
     }
     [data-testid="stColumns"] > [data-testid="column"]:nth-child(1) {
         border-right: 2px solid #ddd;
+        height: 640px;
+        overflow-y: auto;
+        max-width: 100%;
+    }
+    [data-testid="stColumns"] > [data-testid="column"]:nth-child(1) [data-testid="stVerticalBlock"] {
+        max-width: 100%;
+        width: 100%;
+    }
+    [data-testid="stColumns"] > [data-testid="column"]:nth-child(1) p,
+    [data-testid="stColumns"] > [data-testid="column"]:nth-child(1) span {
+        max-width: 100%;
+        word-break: break-word;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -117,14 +135,14 @@ Use the map on the right to interact with spatial data.
 
 
 # Create two columns
-col_chat, col_map = st.columns([0.35, 0.65])
+col_chat, col_map = st.columns([0.5, 0.5])
 
 
 # ============================================================================
 # LEFT COLUMN: CHAT INTERFACE
 # ============================================================================
 with col_chat:
-    st.subheader("💬 Chat")
+    st.subheader("Chat")
 
     # Display chat history
     chat_container = st.container()
@@ -220,7 +238,7 @@ with col_chat:
 # RIGHT COLUMN: MAP INTERFACE
 # ============================================================================
 with col_map:
-    st.subheader("🗺️  Interactive Map")
+    st.subheader("🗺️ Interactive Map")
 
     # Instructions
     st.info("💡 **How to use:** Draw a rectangle to search CRS • Click markers for details")
