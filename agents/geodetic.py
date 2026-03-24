@@ -10,7 +10,7 @@ from tools.geodesy import (
 
 
 llm = ChatGoogleGenerativeAI(
-    model="models/gemini-3.1-flash",
+    model="models/gemini-3-flash-preview",
     temperature=0,
     max_tokens=None,
     timeout=None,
