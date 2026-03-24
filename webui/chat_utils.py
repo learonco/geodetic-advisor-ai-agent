@@ -3,6 +3,7 @@
 from langchain_core.messages import HumanMessage, AIMessage
 from agents.geodetic import geodetic_agent
 from typing import Any, Optional
+import re
 
 
 def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
@@ -247,6 +248,99 @@ def format_message_for_display(role: str, content: str) -> str:
     if role == "user":
         return f"**You:** {content}"
     elif role == "assistant":
-        return f"**Agent:** {content}"
+        return f"**Agent:** {format_crs_results(content)}"
     else:
         return content
+
+
+def format_crs_results(text: str) -> str:
+    """
+    Format CRS results in the response to show only name and authority code.
+    Pattern: NAME (AUTHORITY:CODE) - one per line
+
+    Supports any authority (EPSG, ESRI, IGNF, OGC, etc.)
+    Removes "Area of use" information from results.
+
+    Attempts to parse various CRS result formats and standardize them.
+
+    Args:
+        text: The agent's response text
+
+    Returns:
+        Formatted text with cleaned up CRS results
+    """
+    if not text:
+        return text
+
+    lines = text.split('\n')
+    formatted_lines = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            formatted_lines.append('')
+            continue
+
+        # Skip lines that start with "Area of Use:" entirely
+        if re.match(r'^Area\s+of\s+Use:', line, re.IGNORECASE):
+            continue
+
+        # Remove inline "Area of use" information - content like "(Area of use: ..)"
+        line_cleaned = re.sub(r'\s*\(Area\s+of\s+use:\s*[^)]*\)', '', line, flags=re.IGNORECASE)
+
+        # Also handle "Area of Use:" text that appears after CRS code on the same line
+        # Takes everything before "Area of Use:" if it exists
+        if 'Area of Use:' in line_cleaned or 'Area of use:' in line_cleaned:
+            line_cleaned = re.split(r'Area\s+of\s+Use:', line_cleaned, flags=re.IGNORECASE)[0].strip()
+
+        # Pattern 1: "NAME (AUTHORITY:CODE)" - already in correct format
+        # Matches any authority code (EPSG, ESRI, IGNF, OGC, etc.)
+        if re.match(r'^.+\s*\([A-Z]+:\d+\)\s*$', line_cleaned):
+            formatted_lines.append(line_cleaned)
+            continue
+
+        # Pattern 2: "AUTHORITY:CODE - NAME" format from the agent
+        # Match any authority code followed by colon and digits/alphanumerics
+        authority_match = re.search(r'([A-Z]+):(\d+)\s*-\s*(.+?)(?:\n|$)', line_cleaned)
+        if authority_match:
+            authority = authority_match.group(1)
+            code = authority_match.group(2)
+            name = authority_match.group(3).strip()
+            # Remove common suffixes (parenthetical content)
+            name = re.sub(r'\s*\([^)]*\)\s*$', '', name)
+            formatted_lines.append(f"{name} ({authority}:{code})")
+            continue
+
+        # Pattern 3: Lines containing CRS info with embedded authority codes
+        # Extract all authority codes and their associated names
+        crs_pattern = r'([A-Za-z0-9\s\-\+\/\.,]+?)\s*\(([A-Z]+):(\d+)\)|([A-Z]+):(\d+)\s*[-–]\s*([A-Za-z0-9\s\-\+\/\.,]+)'
+        matches = re.finditer(crs_pattern, line_cleaned)
+
+        found_match = False
+        for match in matches:
+            if match.group(1) and match.group(2) and match.group(3):
+                # Format 1: Name (AUTHORITY:Code)
+                name = match.group(1).strip()
+                # Remove parenthetical content from the name
+                name = re.sub(r'\s*\([^)]*\)\s*$', '', name)
+                authority = match.group(2)
+                code = match.group(3)
+                formatted_lines.append(f"{name} ({authority}:{code})")
+                found_match = True
+            elif match.group(4) and match.group(5) and match.group(6):
+                # Format 2: AUTHORITY:Code - Name
+                authority = match.group(4)
+                code = match.group(5)
+                name = match.group(6).strip()
+                # Remove parenthetical content from the name
+                name = re.sub(r'\s*\([^)]*\)\s*$', '', name)
+                formatted_lines.append(f"{name} ({authority}:{code})")
+                found_match = True
+
+        # If no CRS pattern found, don't add the line (skip non-CRS lines)
+        if not found_match and line_cleaned:
+            # Only add if it doesn't look like metadata/description text
+            if not re.match(r'^(Area|Region|Note|Info|Description)', line_cleaned, re.IGNORECASE):
+                formatted_lines.append(line_cleaned)
+
+    return '\n'.join(formatted_lines)

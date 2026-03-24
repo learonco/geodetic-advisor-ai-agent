@@ -15,6 +15,7 @@ from chat_utils import (
     detect_map_relevant_response,
     extract_tool_calls,
     invoke_geodetic_agent,
+    format_crs_results,
 )
 from map_utils import (
     add_bbox_rectangle,
@@ -155,7 +156,8 @@ with col_chat:
             if role == "user":
                 st.write(f"**You:** {content}")
             else:
-                st.write(f"**Agent:** {content}")
+                formatted_content = format_crs_results(content)
+                st.write(f"**Agent:** {formatted_content}")
 
             # Add a small divider
             st.divider()
