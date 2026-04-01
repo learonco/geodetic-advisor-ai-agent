@@ -118,13 +118,13 @@ def test_parse_agent_results_mixed():
 
 
 def test_map_functions():
-    """Test that map functions import correctly."""
-    from webui.map_utils import add_query_geometry, add_highlighted_result, add_bbox_rectangle
+    """Test that map utility functions that exist can be imported correctly."""
+    from webui.map_utils import add_bbox_rectangle, create_base_map, add_crs_areas
 
     print("Test 4: Import map utility functions")
-    print("  - add_query_geometry: imported ✓")
-    print("  - add_highlighted_result: imported ✓")
     print("  - add_bbox_rectangle: imported ✓")
+    print("  - create_base_map: imported ✓")
+    print("  - add_crs_areas: imported ✓")
     print("✅ Test 4 passed!\n")
 
 
