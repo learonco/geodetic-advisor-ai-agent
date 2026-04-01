@@ -1,7 +1,7 @@
 """Chat utilities for interacting with the geodetic agent."""
 
 from langchain_core.messages import HumanMessage, AIMessage
-from agents.geodetic import geodetic_agent
+from src.agents.geodetic import geodetic_agent
 from typing import Any, Optional
 import re
 
@@ -344,3 +344,80 @@ def format_crs_results(text: str) -> str:
                 formatted_lines.append(line_cleaned)
 
     return '\n'.join(formatted_lines)
+
+
+def parse_agent_results(response: str, tool_calls: list = None) -> list:
+    """
+    Parse agent results and extract CRS entries with EPSG codes and bounding boxes.
+
+    Searches both the text response (for inline EPSG mentions) and tool call
+    outputs (for structured search_crs_objects results).  Tool call data takes
+    precedence: if a result is found in tool output it will carry the full
+    bounding box; text-only hits will have area_bbox=None.
+
+    Args:
+        response: Agent's text response string.
+        tool_calls: Optional list of tool call dicts with 'tool' and 'output' keys.
+
+    Returns:
+        List of dicts, each with:
+            - 'epsg_code': str  (e.g. '4326')
+            - 'crs_name':  str
+            - 'area_bbox': dict | None  (keys: west, south, east, north)
+    """
+    import json
+
+    results: list[dict] = []
+    seen_codes: set[str] = set()
+
+    # --- 1. Extract structured results from tool calls (highest fidelity) ---
+    if tool_calls:
+        for call in tool_calls:
+            try:
+                tool_name = call.get("tool", "") if isinstance(call, dict) else getattr(call, "tool", "")
+                output = call.get("output", "") if isinstance(call, dict) else getattr(call, "output", "")
+
+                if tool_name != "search_crs_objects" or not output:
+                    continue
+
+                records = json.loads(output) if isinstance(output, str) else output
+                if not isinstance(records, list):
+                    continue
+
+                for record in records:
+                    code = str(record.get("EPSG_CODE", "")).strip()
+                    name = str(record.get("CRS_NAME", "")).strip()
+                    bbox_raw = record.get("AREA_BBOX")
+
+                    bbox = None
+                    if isinstance(bbox_raw, dict):
+                        try:
+                            bbox = {
+                                "west": float(bbox_raw["west"]),
+                                "south": float(bbox_raw["south"]),
+                                "east": float(bbox_raw["east"]),
+                                "north": float(bbox_raw["north"]),
+                            }
+                        except (KeyError, ValueError, TypeError):
+                            pass
+
+                    if code and code not in seen_codes:
+                        results.append({"epsg_code": code, "crs_name": name, "area_bbox": bbox})
+                        seen_codes.add(code)
+            except (json.JSONDecodeError, AttributeError, TypeError):
+                continue
+
+    # --- 2. Extract EPSG codes mentioned in the text response ---
+    if response:
+        for match in re.finditer(r'EPSG\s*:\s*(\d+)', response, re.IGNORECASE):
+            code = match.group(1)
+            if code not in seen_codes:
+                # Try to extract a name from surrounding text, e.g. "WGS 84 (EPSG:4326)"
+                start = max(0, match.start() - 60)
+                surrounding = response[start:match.start()]
+                name_match = re.search(r'([A-Za-z0-9][\w\s\-\+\/\.]*?)\s*[\(\-]?\s*$', surrounding)
+                name = name_match.group(1).strip() if name_match else f"EPSG:{code}"
+                results.append({"epsg_code": code, "crs_name": name, "area_bbox": None})
+                seen_codes.add(code)
+
+    return results
