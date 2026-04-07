@@ -1,5 +1,7 @@
 # **SPECIFICATION: Geodetic AI-visor Project**
 
+> **Current Phase**: Phase 2 — Enhancement & Polish | See [TASKS.md](TASKS.md)
+
 ## **1. PROJECT OVERVIEW**
 
 ### **1.1 Project Name**
@@ -426,118 +428,7 @@ Democratize access to complex geodetic and geospatial knowledge by providing an 
 
 ---
 
-## **7. STEP-BY-STEP DEVELOPMENT PLAN**
-
-### **Immediate Next Steps (Week 1-2)**
-
-**Step 1: Code Organization & Architecture**
-- [ ] Restructure project with clear module organization
-- [ ] Create `config/` directory for configuration management
-- [ ] Create `models/` directory for data classes/schemas
-- [ ] Create `services/` directory for business logic services
-- [ ] Document module responsibilities
-
-**Step 2: Error Handling & Robustness**
-- [ ] Add comprehensive error handling to all tools
-- [ ] Create custom exception classes
-- [ ] Add input validation to all tool functions
-- [ ] Add logging throughout the codebase
-- [ ] Create error handling guidelines document
-
-**Step 3: Configuration Management**
-- [ ] Create `.env.example` with required variables
-- [ ] Implement environment variable loading
-- [ ] Add configuration validation on startup
-- [ ] Support multiple environment configurations (dev, test, prod)
-
----
-
-### **Short-term Plan (Week 3-8)**
-
-**Step 4: Comprehensive Testing**
-- [ ] Set up pytest framework with fixtures
-- [ ] Create unit tests for all tools
-- [ ] Create integration tests for agent behavior
-- [ ] Add mock API responses for external services
-- [ ] Achieve >80% code coverage
-- [ ] Set up coverage reports in CI/CD
-
-**Step 5: Documentation**
-- [ ] Write API documentation for all tools
-- [ ] Create architecture design documents
-- [ ] Write configuration guide
-- [ ] Create troubleshooting FAQ
-- [ ] Add usage examples and tutorials
-
-**Step 6: Performance Optimization**
-- [ ] Implement result caching with TTL
-- [ ] Profile tool execution times
-- [ ] Optimize EPSG database queries
-- [ ] Add performance benchmarks
-- [ ] Document performance characteristics
-
-**Step 7: Tool Expansion**
-- [ ] Implement `analyze_projection_distortion` tool
-- [ ] Implement `get_datum_details` tool
-- [ ] Implement `recommend_projection` tool
-- [ ] Add tool test coverage
-- [ ] Update system prompt with new tools
-
----
-
-### **Mid-term Plan (Week 9-16)**
-
-**Step 8: CLI Development**
-- [ ] Design CLI argument structure
-- [ ] Implement command parser with Click/argparse
-- [ ] Create interactive REPL mode
-- [ ] Add output formatters (table, JSON, text)
-- [ ] Add color/styling to output
-- [ ] Document CLI usage
-
-**Step 9: Web UI Foundation**
-- [ ] Set up FastAPI application structure
-- [ ] Create REST API endpoints for each tool
-- [ ] Add request validation and documentation
-- [ ] Create basic frontend skeleton (Vue/React)
-- [ ] Implement chat interface component
-- [ ] Deploy to development server
-
-**Step 10: CI/CD Pipeline**
-- [ ] Set up GitHub Actions workflows
-- [ ] Configure automated testing
-- [ ] Add code quality checks (flake8, black)
-- [ ] Create deployment workflows
-- [ ] Document CI/CD process
-
----
-
-### **Long-term Plan (Week 17-32)**
-
-**Step 11: Advanced Features**
-- [ ] Implement projection design engine
-- [ ] Add multi-provider LLM support
-- [ ] Create batch transformation capability
-- [ ] Add custom CRS creation tools
-- [ ] Implement grid-based transformations
-
-**Step 12: Production Readiness**
-- [ ] Add monitoring and logging infrastructure
-- [ ] Implement rate limiting
-- [ ] Create backup/recovery procedures
-- [ ] Write deployment documentation
-- [ ] Conduct security audit
-
-**Step 13: Scaling & Enterprise**
-- [ ] Implement multi-user support
-- [ ] Add authentication system
-- [ ] Create usage analytics
-- [ ] Set up database integration
-- [ ] Document scalability patterns
-
----
-
-## **8. SUCCESS CRITERIA & KPIs**
+## **7. SUCCESS CRITERIA & KPIs**
 
 ### **Functional Success Criteria**
 - ✅ Agent correctly interprets 90%+ of geodetic queries
@@ -566,7 +457,7 @@ Democratize access to complex geodetic and geospatial knowledge by providing an 
 
 ---
 
-## **9. RISK ASSESSMENT & MITIGATION**
+## **8. RISK ASSESSMENT & MITIGATION**
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|-----------|
@@ -579,47 +470,7 @@ Democratize access to complex geodetic and geospatial knowledge by providing an 
 
 ---
 
-## **10. ACCEPTANCE CRITERIA (MVP)**
-
-**Minimum Viable Product Definition:**
-
-The system is production-ready when:
-
-1. **Core Functionality**
-   - [ ] User can query CRS by area name in natural language
-   - [ ] User can look up EPSG codes and get accurate metadata
-   - [ ] User can transform coordinates between two CRS
-   - [ ] Agent provides geodetic reference frame recommendations
-   - [ ] 90%+ query success rate in manual testing
-
-2. **Code Quality**
-   - [ ] All tools have unit tests
-   - [ ] >75% code coverage
-   - [ ] No critical linting errors
-   - [ ] Error handling for all failure modes
-
-3. **Documentation**
-   - [ ] README with setup instructions
-   - [ ] Tool API documentation
-   - [ ] Architecture documentation
-   - [ ] Troubleshooting guide
-   - [ ] Configuration guide
-
-4. **User Experience**
-   - [ ] Clear error messages for user errors
-   - [ ] Reasonable response times (<5s)
-   - [ ] Helpful context in agent responses
-   - [ ] Support for multiple query formats
-
-5. **Deployment**
-   - [ ] Docker containerization support
-   - [ ] Environment configuration system
-   - [ ] Monitoring/logging capability
-   - [ ] Deployment documentation
-
----
-
-## **11. RESOURCE REQUIREMENTS**
+## **9. RESOURCE REQUIREMENTS**
 
 ### **Development Team**
 - 1 Senior Python Developer (architect, lead)
@@ -644,7 +495,7 @@ The system is production-ready when:
 
 ---
 
-## **12. GLOSSARY OF GEODETIC TERMS**
+## **10. GLOSSARY OF GEODETIC TERMS**
 
 | Term | Definition |
 |------|-----------|
