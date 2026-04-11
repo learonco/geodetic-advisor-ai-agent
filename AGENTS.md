@@ -2,8 +2,7 @@
 - Build an conversational app to support geodetic decisions
 
 # Project structure
-- `src/` - Application source code
-- `webui/` - WebUI source code
+- `src/` - Application source code (including `src/webui/` for the WebUI)
 - `tests/` - Unit and integration tests
 
 # Coding style

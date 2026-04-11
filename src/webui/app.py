@@ -5,19 +5,19 @@ import sys
 from pathlib import Path
 
 # Add the project root to Python path BEFORE importing modules
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import streamlit as st
 from streamlit_folium import st_folium
 
-from chat_utils import (
+from src.webui.chat_utils import (
     detect_map_relevant_response,
     extract_tool_calls,
     invoke_geodetic_agent,
     format_crs_results,
 )
-from map_utils import (
+from src.webui.map_utils import (
     add_bbox_rectangle,
     create_base_map,
 )

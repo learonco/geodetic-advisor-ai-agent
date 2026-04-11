@@ -25,7 +25,7 @@ class TestImports:
     def test_import_webui_chat_utils(self):
         """chat_utils imports geodetic_agent at module level; patch it."""
         with patch("src.agents.geodetic.geodetic_agent", new=MagicMock()):
-            import webui.chat_utils  # noqa: F401
+            import src.webui.chat_utils  # noqa: F401
 
     def test_import_webui_map_utils(self):
-        import webui.map_utils  # noqa: F401
+        import src.webui.map_utils  # noqa: F401

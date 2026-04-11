@@ -10,7 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 class TestMapUtils:
     def _get_module(self):
-        import webui.map_utils as mu
+        import src.webui.map_utils as mu
         return mu
 
     def test_create_base_map_returns_folium_map(self):

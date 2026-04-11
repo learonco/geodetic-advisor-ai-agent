@@ -9,7 +9,7 @@ import json
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from webui.chat_utils import parse_agent_results
+from src.webui.chat_utils import parse_agent_results
 
 def test_parse_agent_results_from_text():
     """Test parsing results from text response."""
@@ -119,7 +119,7 @@ def test_parse_agent_results_mixed():
 
 def test_map_functions():
     """Test that map utility functions that exist can be imported correctly."""
-    from webui.map_utils import add_bbox_rectangle, create_base_map, add_crs_areas
+    from src.webui.map_utils import add_bbox_rectangle, create_base_map, add_crs_areas
 
     print("Test 4: Import map utility functions")
     print("  - add_bbox_rectangle: imported ✓")

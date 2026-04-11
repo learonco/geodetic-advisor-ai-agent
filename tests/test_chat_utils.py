@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 def _load_chat_utils():
     """Import chat_utils with the module-level geodetic_agent patched."""
     with patch("src.agents.geodetic.geodetic_agent", new=MagicMock()):
-        import webui.chat_utils as cu
+        import src.webui.chat_utils as cu
         importlib.reload(cu)
         return cu
 

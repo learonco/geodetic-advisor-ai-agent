@@ -162,5 +162,5 @@ export GEMINI_API_KEY=your_key_here   # Linux/macOS
 $env:GEMINI_API_KEY="your_key_here"   # Windows PowerShell
 
 # Launch the web UI
-uv run streamlit run webui/app.py
+uv run streamlit run src/webui/app.py
 ```
