@@ -19,6 +19,14 @@ class TestSearchCrsObjects:
         result = search_crs_objects.run({"bbox": bbox, "object_type": ["GEODETIC_REFERENCE_FRAME"]})
         assert isinstance(result, list)
 
+    def test_invalid_bbox_values_returns_error(self):
+        from src.tools.geodesy import search_crs_objects
+
+        bbox = {"north": "NaN", "west": "invalid", "south": "bad", "east": "values"}
+        result = search_crs_objects.run({"bbox": bbox})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
     def test_returns_list_with_name_filter(self):
         from src.tools.geodesy import search_crs_objects
 
@@ -60,7 +68,7 @@ class TestGetBboxFromAreaname:
             assert key in result
             assert isinstance(result[key], float)
 
-    def test_raises_on_empty_nominatim_response(self):
+    def test_empty_nominatim_response_returns_error_string(self):
         from src.tools.geodesy import get_bbox_from_areaname
 
         mock_response = MagicMock()
@@ -68,8 +76,47 @@ class TestGetBboxFromAreaname:
         mock_response.raise_for_status = MagicMock()
 
         with patch("httpx.get", return_value=mock_response):
-            with pytest.raises(ValueError, match="not found"):
-                get_bbox_from_areaname.run({"area_name": "NonExistentPlace12345"})
+            result = get_bbox_from_areaname.run({"area_name": "NonExistentPlace12345"})
+
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_timeout_returns_error_string(self):
+        import httpx
+        from src.tools.geodesy import get_bbox_from_areaname
+
+        with patch("httpx.get", side_effect=httpx.TimeoutException("timed out")):
+            result = get_bbox_from_areaname.run({"area_name": "Anywhere"})
+
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+        assert "timed out" in result.lower() or "timeout" in result.lower()
+
+    def test_request_error_returns_error_string(self):
+        import httpx
+        from src.tools.geodesy import get_bbox_from_areaname
+
+        with patch("httpx.get", side_effect=httpx.RequestError("connection refused")):
+            result = get_bbox_from_areaname.run({"area_name": "Anywhere"})
+
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_http_status_error_returns_error_string(self):
+        import httpx
+        from src.tools.geodesy import get_bbox_from_areaname
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Too Many Requests", request=MagicMock(), response=mock_response
+        )
+
+        with patch("httpx.get", return_value=mock_response):
+            result = get_bbox_from_areaname.run({"area_name": "Anywhere"})
+
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
 
 
 class TestLookupCrs:
@@ -84,6 +131,13 @@ class TestLookupCrs:
         from src.tools.geodesy import lookup_crs
 
         result = lookup_crs.run({"epsg_code": "9999999"})
+        assert result.startswith("Error:")
+
+    def test_non_integer_epsg_returns_error_string(self):
+        from src.tools.geodesy import lookup_crs
+
+        result = lookup_crs.run({"epsg_code": "not_a_number"})
+        assert isinstance(result, str)
         assert result.startswith("Error:")
 
 
@@ -104,4 +158,18 @@ class TestTransformCoordinates:
         from src.tools.geodesy import transform_coordinates
 
         result = transform_coordinates.run({"query": "not,valid,input"})
+        assert result.startswith("Error:")
+
+    def test_too_few_parts_returns_error(self):
+        from src.tools.geodesy import transform_coordinates
+
+        result = transform_coordinates.run({"query": "0.0,0.0,4326"})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_non_numeric_coords_returns_error(self):
+        from src.tools.geodesy import transform_coordinates
+
+        result = transform_coordinates.run({"query": "abc,def,4326,3857"})
+        assert isinstance(result, str)
         assert result.startswith("Error:")
