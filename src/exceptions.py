@@ -89,6 +89,18 @@ class InvalidQueryFormatError(ValidationError):
         super().__init__(msg)
 
 
+class InvalidAreaNameError(ValidationError):
+    """Raised when an area name is empty or contains only whitespace.
+
+    Attributes:
+        name: The invalid area name that was provided.
+    """
+
+    def __init__(self, name: object) -> None:
+        self.name = name
+        super().__init__(f"Area name must be a non-empty string, got: {name!r}.")
+
+
 # ---------------------------------------------------------------------------
 # Tool-level errors
 # ---------------------------------------------------------------------------

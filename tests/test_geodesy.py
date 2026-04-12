@@ -4,8 +4,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -44,6 +42,46 @@ class TestSearchCrsObjects:
         assert len(filtered) <= len(all_results)
         for item in filtered:
             assert "WGS 84" in item.name or "WGS84" in item.name.replace(" ", "")
+
+    def test_south_lat_out_of_range_returns_error(self):
+        from src.tools.geodesy import search_crs_objects
+
+        bbox = {"north": 0.0, "west": -10.0, "south": -91.0, "east": 10.0}
+        result = search_crs_objects.run({"bbox": bbox})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_north_lat_out_of_range_returns_error(self):
+        from src.tools.geodesy import search_crs_objects
+
+        bbox = {"north": 91.0, "west": -10.0, "south": 0.0, "east": 10.0}
+        result = search_crs_objects.run({"bbox": bbox})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_west_lon_out_of_range_returns_error(self):
+        from src.tools.geodesy import search_crs_objects
+
+        bbox = {"north": 10.0, "west": -181.0, "south": -10.0, "east": 10.0}
+        result = search_crs_objects.run({"bbox": bbox})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_east_lon_out_of_range_returns_error(self):
+        from src.tools.geodesy import search_crs_objects
+
+        bbox = {"north": 10.0, "west": -10.0, "south": -10.0, "east": 181.0}
+        result = search_crs_objects.run({"bbox": bbox})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_south_greater_than_north_returns_error(self):
+        from src.tools.geodesy import search_crs_objects
+
+        bbox = {"north": 5.0, "west": -10.0, "south": 10.0, "east": 10.0}
+        result = search_crs_objects.run({"bbox": bbox})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
 
 
 class TestGetBboxFromAreaname:
@@ -118,6 +156,20 @@ class TestGetBboxFromAreaname:
         assert isinstance(result, str)
         assert result.startswith("Error:")
 
+    def test_empty_area_name_returns_error(self):
+        from src.tools.geodesy import get_bbox_from_areaname
+
+        result = get_bbox_from_areaname.run({"area_name": ""})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_whitespace_area_name_returns_error(self):
+        from src.tools.geodesy import get_bbox_from_areaname
+
+        result = get_bbox_from_areaname.run({"area_name": "   "})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
 
 class TestLookupCrs:
     def test_known_epsg_returns_metadata(self):
@@ -137,6 +189,20 @@ class TestLookupCrs:
         from src.tools.geodesy import lookup_crs
 
         result = lookup_crs.run({"epsg_code": "not_a_number"})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_zero_epsg_returns_error(self):
+        from src.tools.geodesy import lookup_crs
+
+        result = lookup_crs.run({"epsg_code": "0"})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_negative_epsg_returns_error(self):
+        from src.tools.geodesy import lookup_crs
+
+        result = lookup_crs.run({"epsg_code": "-1"})
         assert isinstance(result, str)
         assert result.startswith("Error:")
 
@@ -171,5 +237,26 @@ class TestTransformCoordinates:
         from src.tools.geodesy import transform_coordinates
 
         result = transform_coordinates.run({"query": "abc,def,4326,3857"})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_non_integer_from_epsg_returns_error(self):
+        from src.tools.geodesy import transform_coordinates
+
+        result = transform_coordinates.run({"query": "0,0,abc,4326"})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_non_integer_to_epsg_returns_error(self):
+        from src.tools.geodesy import transform_coordinates
+
+        result = transform_coordinates.run({"query": "0,0,4326,xyz"})
+        assert isinstance(result, str)
+        assert result.startswith("Error:")
+
+    def test_negative_epsg_in_query_returns_error(self):
+        from src.tools.geodesy import transform_coordinates
+
+        result = transform_coordinates.run({"query": "0,0,-1,4326"})
         assert isinstance(result, str)
         assert result.startswith("Error:")

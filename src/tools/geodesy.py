@@ -6,10 +6,11 @@ from pyproj import CRS, Transformer, aoi, database
 from pyproj.enums import PJType
 
 from src.exceptions import (
+    AreaNotFoundError,
     CoordinateTransformError,
-    CrsSearchError,
     EpsgLookupError,
     GeodeticAdvisorError,
+    InvalidAreaNameError,
     InvalidBboxError,
     InvalidCoordinateError,
     InvalidEpsgCodeError,
@@ -18,7 +19,6 @@ from src.exceptions import (
     NominatimError,
     NominatimHttpError,
     NominatimTimeoutError,
-    AreaNotFoundError,
 )
 
 
@@ -55,11 +55,28 @@ def search_crs_objects(bbox: dict=None,
                     float(bbox[field])
                 except (TypeError, ValueError):
                     raise InvalidBboxError(field, bbox[field])
+
+            west = float(bbox['west'])
+            south = float(bbox['south'])
+            east = float(bbox['east'])
+            north = float(bbox['north'])
+
+            if not -90.0 <= south <= 90.0:
+                raise InvalidBboxError('south', bbox['south'])
+            if not -90.0 <= north <= 90.0:
+                raise InvalidBboxError('north', bbox['north'])
+            if not -180.0 <= west <= 180.0:
+                raise InvalidBboxError('west', bbox['west'])
+            if not -180.0 <= east <= 180.0:
+                raise InvalidBboxError('east', bbox['east'])
+            if south > north:
+                raise InvalidBboxError('south/north', f"{south}/{north}")
+
             aoi_bbox = aoi.AreaOfInterest(
-                west_lon_degree=float(bbox['west']),
-                south_lat_degree=float(bbox['south']),
-                east_lon_degree=float(bbox['east']),
-                north_lat_degree=float(bbox['north'])
+                west_lon_degree=west,
+                south_lat_degree=south,
+                east_lon_degree=east,
+                north_lat_degree=north,
             )
 
         crs_list = database.query_crs_info(
@@ -99,6 +116,12 @@ def get_bbox_from_areaname(area_name: str) -> dict | str:
         dict
             A dictionary with keys: west, south, east, north, or an error string on failure.
     """
+    try:
+        if not area_name or not area_name.strip():
+            raise InvalidAreaNameError(area_name)
+    except GeodeticAdvisorError as e:
+        return f"Error: {e}"
+
     url = "https://nominatim.openstreetmap.org/search"
     params = {
         "q": area_name,
@@ -163,6 +186,9 @@ def lookup_crs(epsg_code: str) -> str:
         except (ValueError, TypeError):
             raise InvalidEpsgCodeError(epsg_code)
 
+        if code <= 0:
+            raise InvalidEpsgCodeError(epsg_code)
+
         try:
             crs = CRS.from_epsg(code)
         except Exception as e:
@@ -197,6 +223,14 @@ def transform_coordinates(query: str) -> str:
             raise InvalidCoordinateError("x,y", f"{parts[0]},{parts[1]}")
 
         from_epsg, to_epsg = parts[2], parts[3]
+        for label, code_str in (("from_epsg", from_epsg), ("to_epsg", to_epsg)):
+            try:
+                code_val = int(code_str)
+            except (ValueError, TypeError):
+                raise InvalidEpsgCodeError(code_str)
+            if code_val <= 0:
+                raise InvalidEpsgCodeError(code_str)
+
         try:
             transformer = Transformer.from_crs(
                 f"EPSG:{from_epsg}", f"EPSG:{to_epsg}", always_xy=True
