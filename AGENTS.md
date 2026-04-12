@@ -6,7 +6,7 @@
 - `tests/` - Unit and integration tests
 
 # Coding style
-- Follow PEP8 for Python
+- Adhere to PEP8 for Python
 - Use type hints for function signatures
 - Add Google-Style docsting to classes, modules and functions
 
