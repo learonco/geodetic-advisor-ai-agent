@@ -5,6 +5,8 @@ from src.agents.geodetic import geodetic_agent
 from typing import Any, Optional
 import re
 
+from src.exceptions import AgentInvocationError, GeodeticAdvisorError, ResponseParsingError
+
 
 def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
     """
@@ -36,28 +38,33 @@ def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
         messages.append(HumanMessage(content=query))
 
         # Invoke agent with messages
-        result = geodetic_agent.invoke({"messages": messages})
+        try:
+            result = geodetic_agent.invoke({"messages": messages})
+        except Exception as e:
+            raise AgentInvocationError(query, cause=e) from e
 
         # Extract the last AI message (agent's response)
-        agent_response = ""
-        if "messages" in result:
-            for msg in reversed(result["messages"]):
-                if isinstance(msg, AIMessage) and msg.content:
-                    # Handle both string and list content
-                    if isinstance(msg.content, str):
-                        agent_response = msg.content
-                    elif isinstance(msg.content, list):
-                        # Extract text from list of content blocks
-                        text_parts = []
-                        for content_block in msg.content:
-                            if isinstance(content_block, dict) and content_block.get("type") == "text":
-                                text_parts.append(content_block.get("text", ""))
-                            elif isinstance(content_block, str):
-                                text_parts.append(content_block)
-                        agent_response = " ".join(text_parts)
+        if not isinstance(result, dict) or "messages" not in result:
+            raise ResponseParsingError(result, detail="expected dict with 'messages' key")
 
-                    if agent_response:
-                        break
+        agent_response = ""
+        for msg in reversed(result["messages"]):
+            if isinstance(msg, AIMessage) and msg.content:
+                # Handle both string and list content
+                if isinstance(msg.content, str):
+                    agent_response = msg.content
+                elif isinstance(msg.content, list):
+                    # Extract text from list of content blocks
+                    text_parts = []
+                    for content_block in msg.content:
+                        if isinstance(content_block, dict) and content_block.get("type") == "text":
+                            text_parts.append(content_block.get("text", ""))
+                        elif isinstance(content_block, str):
+                            text_parts.append(content_block)
+                    agent_response = " ".join(text_parts)
+
+                if agent_response:
+                    break
 
         return {
             "response": agent_response if agent_response else "No response from agent",
@@ -65,6 +72,15 @@ def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
             "tool_results": extract_tool_results(result),
             "reasoning": [],
             "success": True
+        }
+    except GeodeticAdvisorError as e:
+        return {
+            "response": str(e),
+            "tool_calls": [],
+            "tool_results": [],
+            "reasoning": [],
+            "success": False,
+            "error": str(e)
         }
     except Exception as e:
         return {

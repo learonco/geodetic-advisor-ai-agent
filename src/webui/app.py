@@ -214,11 +214,10 @@ with col_chat:
                 # Store in agent state for map interaction
                 if map_detection["data_type"] == "bbox":
                     try:
-                        # Parse bbox from tool output
                         import json
                         bbox_data = json.loads(map_detection["data"])
                         st.session_state.agent_state["last_bbox"] = bbox_data
-                    except:
+                    except (TypeError, ValueError, json.JSONDecodeError):
                         pass
 
                 st.rerun()

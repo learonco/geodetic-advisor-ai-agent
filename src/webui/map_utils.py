@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import folium
 from folium.plugins import Draw
 
+from src.exceptions import GeodeticAdvisorError
+
 
 def create_base_map(center: Tuple[float, float] = (20, 0), zoom: int = 2) -> folium.Map:
     """
@@ -118,7 +120,7 @@ def add_crs_areas(m: folium.Map, crs_info_list: List[Dict]) -> folium.Map:
                     weight=1,
                     popup=folium.Popup(popup_text, max_width=250)
                 ).add_to(fg)
-        except Exception as e:
+        except Exception:
             # Skip CRS entries without valid area info
             continue
 
@@ -166,7 +168,7 @@ def add_search_results_markers(m: folium.Map, results: List[Dict], color: str = 
                 icon=folium.Icon(color=color, icon='info-sign'),
                 tooltip=f"{epsg_code}: {crs_name}"
             ).add_to(fg)
-        except Exception as e:
+        except Exception:
             continue
 
     fg.add_to(m)
@@ -212,8 +214,10 @@ def highlight_crs_polygon(m: folium.Map, crs_epsg: str, crs_info: Dict) -> foliu
 
             # Fit map to bounds
             m.fit_bounds(bounds)
+    except GeodeticAdvisorError:
+        raise
     except Exception as e:
-        pass
+        raise GeodeticAdvisorError(f"Failed to highlight CRS {crs_epsg} on map: {e}") from e
 
     return m
 
@@ -233,8 +237,10 @@ def extract_coordinates_from_clicks(map_data: Dict) -> Optional[Tuple[float, flo
             click = map_data['last_clicked']
             if click:
                 return (click['lat'], click['lng'])
+    except KeyError as e:
+        raise GeodeticAdvisorError(f"Unexpected map click data format — missing key {e}") from e
     except Exception as e:
-        pass
+        raise GeodeticAdvisorError(f"Failed to extract coordinates from map click: {e}") from e
 
     return None
 
@@ -261,8 +267,10 @@ def extract_bbox_from_geometry(geometry: Dict) -> Optional[Dict]:
                     'east': max(lons),
                     'north': max(lats)
                 }
+    except KeyError as e:
+        raise GeodeticAdvisorError(f"Unexpected geometry format — missing key {e}") from e
     except Exception as e:
-        pass
+        raise GeodeticAdvisorError(f"Failed to extract bounding box from geometry: {e}") from e
 
     return None
 

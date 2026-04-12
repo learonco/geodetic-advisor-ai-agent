@@ -5,6 +5,22 @@ from langchain.tools import tool
 from pyproj import CRS, Transformer, aoi, database
 from pyproj.enums import PJType
 
+from src.exceptions import (
+    CoordinateTransformError,
+    CrsSearchError,
+    EpsgLookupError,
+    GeodeticAdvisorError,
+    InvalidBboxError,
+    InvalidCoordinateError,
+    InvalidEpsgCodeError,
+    InvalidQueryFormatError,
+    NominatimConnectionError,
+    NominatimError,
+    NominatimHttpError,
+    NominatimTimeoutError,
+    AreaNotFoundError,
+)
+
 
 @tool
 def search_crs_objects(bbox: dict=None,
@@ -32,15 +48,19 @@ def search_crs_objects(bbox: dict=None,
     try:
         aoi_bbox = None
         if bbox:
-            try:
-                aoi_bbox = aoi.AreaOfInterest(
-                    west_lon_degree=float(bbox['west']),
-                    south_lat_degree=float(bbox['south']),
-                    east_lon_degree=float(bbox['east']),
-                    north_lat_degree=float(bbox['north'])
-                )
-            except (TypeError, ValueError, KeyError) as e:
-                return f"Error: invalid bbox values — {e}"
+            for field in ('west', 'south', 'east', 'north'):
+                if field not in bbox:
+                    raise InvalidBboxError(field, None)
+                try:
+                    float(bbox[field])
+                except (TypeError, ValueError):
+                    raise InvalidBboxError(field, bbox[field])
+            aoi_bbox = aoi.AreaOfInterest(
+                west_lon_degree=float(bbox['west']),
+                south_lat_degree=float(bbox['south']),
+                east_lon_degree=float(bbox['east']),
+                north_lat_degree=float(bbox['north'])
+            )
 
         crs_list = database.query_crs_info(
             area_of_interest=aoi_bbox,
@@ -61,6 +81,8 @@ def search_crs_objects(bbox: dict=None,
             ]
 
         return crs_list
+    except GeodeticAdvisorError as e:
+        return f"Error: {e}"
     except Exception as e:
         return f"Error: {e}"
 
@@ -88,37 +110,40 @@ def get_bbox_from_areaname(area_name: str) -> dict | str:
     }
 
     try:
-        response = httpx.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-    except httpx.TimeoutException:
-        return f"Error: request to Nominatim timed out while searching for '{area_name}'."
-    except httpx.HTTPStatusError as e:
-        return f"Error: Nominatim returned HTTP {e.response.status_code} for '{area_name}'."
-    except httpx.RequestError as e:
-        return f"Error: network error while contacting Nominatim — {e}"
+        try:
+            response = httpx.get(url, params=params, headers=headers, timeout=10)
+            response.raise_for_status()
+        except httpx.TimeoutException:
+            raise NominatimTimeoutError(area_name)
+        except httpx.HTTPStatusError as e:
+            raise NominatimHttpError(area_name, status_code=e.response.status_code)
+        except httpx.RequestError as e:
+            raise NominatimConnectionError(area_name, cause=e)
 
-    try:
-        results = response.json()
-    except Exception as e:
-        return f"Error: could not parse Nominatim response — {e}"
+        try:
+            results = response.json()
+        except Exception as e:
+            raise NominatimError(area_name, detail=f"could not parse response — {e}")
 
-    if not results:
-        return f"Error: area '{area_name}' not found in Nominatim."
+        if not results:
+            raise AreaNotFoundError(area_name)
 
-    result = results[0]
-    if "boundingbox" not in result:
-        return f"Error: bounding box information not available for '{area_name}'."
+        result = results[0]
+        if "boundingbox" not in result:
+            raise NominatimError(area_name, detail="bounding box information not available")
 
-    try:
-        south, north, west, east = result["boundingbox"]
-        return {
-            "west": float(west),
-            "south": float(south),
-            "east": float(east),
-            "north": float(north)
-        }
-    except (ValueError, TypeError) as e:
-        return f"Error: could not parse bounding box values for '{area_name}' — {e}"
+        try:
+            south, north, west, east = result["boundingbox"]
+            return {
+                "west": float(west),
+                "south": float(south),
+                "east": float(east),
+                "north": float(north)
+            }
+        except (ValueError, TypeError) as e:
+            raise NominatimError(area_name, detail=f"could not parse bounding box values — {e}")
+    except GeodeticAdvisorError as e:
+        return f"Error: {e}"
 
 
 @tool
@@ -133,13 +158,19 @@ def lookup_crs(epsg_code: str) -> str:
             A string with the CRS metadata, or an error string on failure.
     """
     try:
-        code = int(epsg_code)
-    except (ValueError, TypeError):
-        return f"Error: '{epsg_code}' is not a valid integer EPSG code."
+        try:
+            code = int(epsg_code)
+        except (ValueError, TypeError):
+            raise InvalidEpsgCodeError(epsg_code)
 
-    try:
-        crs = CRS.from_epsg(code)
+        try:
+            crs = CRS.from_epsg(code)
+        except Exception as e:
+            raise EpsgLookupError(code, detail=str(e)) from e
+
         return f"EPSG:{epsg_code} - {crs.name}\nDatum: {crs.datum.name}\nArea of use: {crs.area_of_use.name}"
+    except GeodeticAdvisorError as e:
+        return f"Error: {e}"
     except Exception as e:
         return f"Error: {e}"
 
@@ -158,18 +189,26 @@ def transform_coordinates(query: str) -> str:
     try:
         parts = [p.strip() for p in query.split(",")]
         if len(parts) < 4:
-            return "Error: query must have format 'x,y,from_epsg,to_epsg' (e.g. '-58.4,-34.6,4326,3857')."
+            raise InvalidQueryFormatError(query, expected="x,y,from_epsg,to_epsg")
 
         try:
             x, y = float(parts[0]), float(parts[1])
         except ValueError:
-            return f"Error: coordinates '{parts[0]}' and '{parts[1]}' must be numeric values."
+            raise InvalidCoordinateError("x,y", f"{parts[0]},{parts[1]}")
 
         from_epsg, to_epsg = parts[2], parts[3]
-        transformer = Transformer.from_crs(
-            f"EPSG:{from_epsg}", f"EPSG:{to_epsg}", always_xy=True
-        )
-        x2, y2 = transformer.transform(x, y)
+        try:
+            transformer = Transformer.from_crs(
+                f"EPSG:{from_epsg}", f"EPSG:{to_epsg}", always_xy=True
+            )
+            x2, y2 = transformer.transform(x, y)
+        except GeodeticAdvisorError:
+            raise
+        except Exception as e:
+            raise CoordinateTransformError(from_epsg, to_epsg, detail=str(e)) from e
+
         return f"Transformed coordinates: ({x2:.6f}, {y2:.6f})"
+    except GeodeticAdvisorError as e:
+        return f"Error: {e}"
     except Exception as e:
         return f"Error: {e}"
