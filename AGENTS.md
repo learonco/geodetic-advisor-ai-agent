@@ -9,6 +9,7 @@
 - Adhere to PEP8 for Python
 - Use type hints for function signatures
 - Add Google-Style docsting to classes, modules and functions
+- Implement using the red/greed TDD pattern
 
 # Commands
 - Run: `uv run`
