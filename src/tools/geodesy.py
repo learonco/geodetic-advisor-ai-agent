@@ -12,7 +12,6 @@ from src.exceptions import (
     EpsgLookupError,
     GeodeticAdvisorError,
     InvalidAreaNameError,
-    InvalidBboxError,
     InvalidCoordinateError,
     InvalidEpsgCodeError,
     InvalidQueryFormatError,

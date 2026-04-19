@@ -2,12 +2,10 @@
 
 from langchain_core.messages import HumanMessage, AIMessage
 from src.agents.geodetic import geodetic_agent
-from typing import Any, Optional
 import re
 
 from src.exceptions import AgentInvocationError, GeodeticAdvisorError, ResponseParsingError
 from src.models.agent import AgentResponse, ToolCall
-from src.models.chat import ChatMessage
 from src.models.geodesy import BoundingBox, CRSResult
 
 

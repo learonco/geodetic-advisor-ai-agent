@@ -9,18 +9,14 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import streamlit as st
-from streamlit_folium import st_folium
 
 from src.webui.chat_utils import (
     detect_map_relevant_response,
-    extract_tool_calls,
     invoke_geodetic_agent,
     format_crs_results,
+    parse_agent_results,
 )
-from src.webui.map_utils import (
-    add_bbox_rectangle,
-    create_base_map,
-)
+from src.webui.map_utils import render_map
 
 # Suppress Streamlit warnings and prompts
 os.environ["STREAMLIT_CLIENT_SHOWERRORDETAILS"] = "false"
@@ -108,24 +104,6 @@ if "chat_history" not in st.session_state:
 if "agent_state" not in st.session_state:
     st.session_state.agent_state = {"last_bbox": None, "last_results": []}
 
-if "map_data" not in st.session_state:
-    st.session_state.map_data = {"bbox_points": []}
-
-if "bbox_coordinates" not in st.session_state:
-    st.session_state.bbox_coordinates = []
-
-if "processed_drawings" not in st.session_state:
-    st.session_state.processed_drawings = set()
-
-if "selected_crs_types" not in st.session_state:
-    st.session_state.selected_crs_types = [
-        "Projected CRS",
-        "Geographic CRS",
-        "Vertical CRS",
-        "Compound CRS",
-        "Geodetic Reference Frame"
-    ]
-
 
 # Title and description
 st.title("🗺️ Geodetic Advisor AI")
@@ -211,7 +189,12 @@ with col_chat:
                 # Check if response has map-relevant data
                 map_detection = detect_map_relevant_response(agent_response, tool_calls)
 
-                # Store in agent state for map interaction
+                # Store results for map rendering
+                if map_detection.get("has_results"):
+                    crs_results = parse_agent_results(agent_response, [tc.__dict__ for tc in tool_calls])
+                    if crs_results:
+                        st.session_state.agent_state["last_results"] = crs_results
+
                 if map_detection["data_type"] == "bbox":
                     try:
                         import json
@@ -239,115 +222,26 @@ with col_chat:
 # RIGHT COLUMN: MAP INTERFACE
 # ============================================================================
 with col_map:
-    st.subheader("🗺️ Interactive Map")
+    st.subheader("🗺️ Map View")
 
-    # Instructions
-    st.info("💡 **How to use:** Draw a rectangle to search CRS • Click markers for details")
+    last_results = st.session_state.agent_state.get("last_results", [])
+    last_bbox = st.session_state.agent_state.get("last_bbox")
 
-    crs_type_options = [
-        "Projected CRS",
-        "Geographic CRS",
-        "Vertical CRS",
-        "Compound CRS",
-        "Geodetic Reference Frame"
-    ]
+    from src.models.geodesy import BoundingBox
+    bbox_model: BoundingBox | None = None
+    if last_bbox and isinstance(last_bbox, dict):
+        try:
+            bbox_model = BoundingBox(**last_bbox)
+        except Exception:
+            bbox_model = None
 
-    selected_types = st.multiselect(
-        "Select CRS types to include in search:",
-        options=crs_type_options,
-        default=crs_type_options,
-        key="crs_type_filter"
-    )
+    deck = render_map(last_results, bbox_model)
+    st.pydeck_chart(deck, use_container_width=True)
 
-    # Store in session state
-    st.session_state.selected_crs_types = selected_types if selected_types else crs_type_options
-
-    # Create base map
-    m = create_base_map(center=(20, 0), zoom=2)
-
-    # Add last bbox if exists
-    if st.session_state.agent_state.get("last_bbox"):
-        bbox = st.session_state.agent_state["last_bbox"]
-        m = add_bbox_rectangle(m, bbox, color='red')
-
-    # Render map and get interaction data
-    map_data = st_folium(m, width=1200, height=500)
-
-    # Process map interactions
-    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-        drawings = map_data["all_drawings"]
-
-        for idx, drawing in enumerate(drawings):
-            # streamlit-folium returns rectangles as GeoJSON Features with Polygon geometry
-            if drawing.get("type") == "Feature":
-                geometry = drawing.get("geometry", {})
-
-                # Check if it's a polygon (rectangle)
-                if geometry.get("type") == "Polygon":
-                    drawing_id = f"{idx}_{id(drawing)}"
-
-                    if drawing_id not in st.session_state.processed_drawings:
-                        try:
-                            # Extract coordinates from polygon
-                            coords = geometry.get("coordinates", [[]])[0]
-
-                            if coords:
-                                lons = [c[0] for c in coords]
-                                lats = [c[1] for c in coords]
-
-                                bbox = {
-                                    "west": min(lons),
-                                    "south": min(lats),
-                                    "east": max(lons),
-                                    "north": max(lats)
-                                }
-
-                                # Mark as processed
-                                st.session_state.processed_drawings.add(drawing_id)
-
-                                # Store bbox
-                                st.session_state.agent_state["last_bbox"] = bbox
-
-                                # Trigger agent query
-                                bbox_str = f"[W:{bbox['west']:.2f}, S:{bbox['south']:.2f}, E:{bbox['east']:.2f}, N:{bbox['north']:.2f}]"
-
-                                # Include selected CRS types in query
-                                crs_types_str = ""
-                                if st.session_state.selected_crs_types:
-                                    types_list = ", ".join(st.session_state.selected_crs_types)
-                                    crs_types_str = f" Filter by types: {types_list}."
-
-                                query = f"Find CRS and projections applicable to area: {bbox_str}{crs_types_str}"
-
-                                # Add to chat history
-                                st.session_state.chat_history.append({
-                                    "role": "user",
-                                    "content": query
-                                })
-
-                                # Invoke agent
-                                with st.spinner("Searching for CRS in selected area..."):
-                                    result = invoke_geodetic_agent(
-                                        query=query,
-                                        chat_history=st.session_state.chat_history
-                                    )
-
-                                    if result.success:
-                                        agent_response = result.response
-
-                                        st.session_state.chat_history.append({
-                                            "role": "assistant",
-                                            "content": agent_response,
-                                            "tool_calls": result.tool_calls
-                                        })
-                                        st.rerun()
-                                    else:
-                                        st.error(f"Agent error: {result.error}")
-                        except Exception as e:
-                            st.error(f"Error processing rectangle: {str(e)}")
-
-    # Display map controls info
-    st.caption("🎨 Use the drawing tools in the map to create search areas")
+    if last_results:
+        st.caption(f"Showing {len(last_results)} CRS result(s). Hover polygons for details.")
+    else:
+        st.caption("Ask the agent about a location to see CRS areas on the map.")
 
 
 # ============================================================================
