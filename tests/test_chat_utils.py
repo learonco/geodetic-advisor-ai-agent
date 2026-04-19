@@ -48,7 +48,7 @@ class TestParseAgentResults:
         cu = _load_chat_utils()
         response = "I found EPSG:4326, EPSG:3857 and EPSG:4979 for your area."
         results = cu.parse_agent_results(response)
-        codes = {r["epsg_code"] for r in results}
+        codes = {r.epsg_code for r in results}
         assert {"4326", "3857", "4979"}.issubset(codes)
 
     def test_parse_from_tool_calls(self):
@@ -57,18 +57,18 @@ class TestParseAgentResults:
             {
                 "tool": "search_crs_objects",
                 "output": json.dumps([
-                    {"EPSG_CODE": "4326", "CRS_NAME": "WGS 84", "AREA_OF_USE": "World",
-                     "AREA_BBOX": {"west": -180.0, "south": -90.0, "east": 180.0, "north": 90.0}},
-                    {"EPSG_CODE": "3857", "CRS_NAME": "Web Mercator", "AREA_OF_USE": "World",
-                     "AREA_BBOX": {"west": -180.0, "south": -85.0, "east": 180.0, "north": 85.0}},
+                    {"epsg_code": "4326", "crs_name": "WGS 84",
+                     "area_bbox": {"west": -180.0, "south": -90.0, "east": 180.0, "north": 90.0}},
+                    {"epsg_code": "3857", "crs_name": "Web Mercator",
+                     "area_bbox": {"west": -180.0, "south": -85.0, "east": 180.0, "north": 85.0}},
                 ]),
             }
         ]
         results = cu.parse_agent_results("Found 2 CRS.", tool_calls)
         assert len(results) == 2
-        assert results[0]["epsg_code"] == "4326"
-        assert results[0]["area_bbox"] is not None
-        assert results[0]["area_bbox"]["west"] == -180.0
+        assert results[0].epsg_code == "4326"
+        assert results[0].area_bbox is not None
+        assert results[0].area_bbox.west == -180.0
 
     def test_no_duplicate_codes(self):
         """EPSG codes in both text and tool output must appear only once."""
@@ -77,12 +77,12 @@ class TestParseAgentResults:
             {
                 "tool": "search_crs_objects",
                 "output": json.dumps([
-                    {"EPSG_CODE": "4326", "CRS_NAME": "WGS 84", "AREA_OF_USE": "World", "AREA_BBOX": None},
+                    {"epsg_code": "4326", "crs_name": "WGS 84", "area_bbox": None},
                 ]),
             }
         ]
         results = cu.parse_agent_results("EPSG:4326", tool_calls)
-        codes = [r["epsg_code"] for r in results]
+        codes = [r.epsg_code for r in results]
         assert codes.count("4326") == 1
 
     def test_empty_response_returns_empty_list(self):
@@ -96,14 +96,14 @@ class TestParseAgentResults:
             {
                 "tool": "search_crs_objects",
                 "output": json.dumps([
-                    {"EPSG_CODE": "4326", "CRS_NAME": "WGS 84", "AREA_OF_USE": "World",
-                     "AREA_BBOX": {"west": -180.0, "south": -90.0, "east": 180.0, "north": 90.0}},
+                    {"epsg_code": "4326", "crs_name": "WGS 84",
+                     "area_bbox": {"west": -180.0, "south": -90.0, "east": 180.0, "north": 90.0}},
                 ]),
             }
         ]
         # Text also mentions 4979 (not in tool output)
         results = cu.parse_agent_results("EPSG:4326 and EPSG:4979", tool_calls)
-        codes = {r["epsg_code"] for r in results}
+        codes = {r.epsg_code for r in results}
         assert "4326" in codes
         assert "4979" in codes
 

@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -17,13 +19,13 @@ class TestSearchCrsObjects:
         result = search_crs_objects.run({"bbox": bbox, "object_type": ["GEODETIC_REFERENCE_FRAME"]})
         assert isinstance(result, list)
 
-    def test_invalid_bbox_values_returns_error(self):
+    def test_invalid_bbox_values_raises_validation_error(self):
+        """Non-numeric bbox values are rejected by the Pydantic schema."""
         from src.tools.geodesy import search_crs_objects
 
         bbox = {"north": "NaN", "west": "invalid", "south": "bad", "east": "values"}
-        result = search_crs_objects.run({"bbox": bbox})
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(Exception):
+            search_crs_objects.run({"bbox": bbox})
 
     def test_returns_list_with_name_filter(self):
         from src.tools.geodesy import search_crs_objects
@@ -41,47 +43,47 @@ class TestSearchCrsObjects:
         assert isinstance(filtered, list)
         assert len(filtered) <= len(all_results)
         for item in filtered:
-            assert "WGS 84" in item.name or "WGS84" in item.name.replace(" ", "")
+            assert "WGS 84" in item.crs_name or "WGS84" in item.crs_name.replace(" ", "")
 
-    def test_south_lat_out_of_range_returns_error(self):
+    def test_south_lat_out_of_range_raises_validation_error(self):
+        """Out-of-range latitude values are rejected by the Pydantic schema."""
         from src.tools.geodesy import search_crs_objects
 
         bbox = {"north": 0.0, "west": -10.0, "south": -91.0, "east": 10.0}
-        result = search_crs_objects.run({"bbox": bbox})
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(Exception):
+            search_crs_objects.run({"bbox": bbox})
 
-    def test_north_lat_out_of_range_returns_error(self):
+    def test_north_lat_out_of_range_raises_validation_error(self):
+        """Out-of-range latitude values are rejected by the Pydantic schema."""
         from src.tools.geodesy import search_crs_objects
 
         bbox = {"north": 91.0, "west": -10.0, "south": 0.0, "east": 10.0}
-        result = search_crs_objects.run({"bbox": bbox})
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(Exception):
+            search_crs_objects.run({"bbox": bbox})
 
-    def test_west_lon_out_of_range_returns_error(self):
+    def test_west_lon_out_of_range_raises_validation_error(self):
+        """Out-of-range longitude values are rejected by the Pydantic schema."""
         from src.tools.geodesy import search_crs_objects
 
         bbox = {"north": 10.0, "west": -181.0, "south": -10.0, "east": 10.0}
-        result = search_crs_objects.run({"bbox": bbox})
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(Exception):
+            search_crs_objects.run({"bbox": bbox})
 
-    def test_east_lon_out_of_range_returns_error(self):
+    def test_east_lon_out_of_range_raises_validation_error(self):
+        """Out-of-range longitude values are rejected by the Pydantic schema."""
         from src.tools.geodesy import search_crs_objects
 
         bbox = {"north": 10.0, "west": -10.0, "south": -10.0, "east": 181.0}
-        result = search_crs_objects.run({"bbox": bbox})
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(Exception):
+            search_crs_objects.run({"bbox": bbox})
 
-    def test_south_greater_than_north_returns_error(self):
+    def test_south_greater_than_north_raises_validation_error(self):
+        """south > north is rejected by the Pydantic schema model validator."""
         from src.tools.geodesy import search_crs_objects
 
         bbox = {"north": 5.0, "west": -10.0, "south": 10.0, "east": 10.0}
-        result = search_crs_objects.run({"bbox": bbox})
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(Exception):
+            search_crs_objects.run({"bbox": bbox})
 
 
 class TestGetBboxFromAreaname:

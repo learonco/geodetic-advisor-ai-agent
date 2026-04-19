@@ -1,6 +1,7 @@
 import httpx
 
 from langchain.tools import tool
+from pydantic import BaseModel, Field
 
 from pyproj import CRS, Transformer, aoi, database
 from pyproj.enums import PJType
@@ -20,70 +21,129 @@ from src.exceptions import (
     NominatimHttpError,
     NominatimTimeoutError,
 )
+from src.models.geodesy import BoundingBox, CRSResult
 
 
-@tool
-def search_crs_objects(bbox: dict=None,
-                       object_type: PJType | list[PJType] | None=None,
-                       object_name: str=None,
-                       object_area_of_use: str=None) -> list | str:
-    """Returns all applicable CRS objects for the given area of interest, including geographic,
-    projected, vertical, and other types.
-    Use this after getting bbox coordinates from get_bbox_from_areaname. The areaname can be user as filter_text to narrow down results.
+# ---------------------------------------------------------------------------
+# Tool input schemas
+# ---------------------------------------------------------------------------
 
-    Parameters:
-        bbox: dict
-            A dictionary object representing the geographic area with keys: west, south, east, north.
-        object_type : pyproj.enums.PJType or list[pyproj.enums.PJType] or None
-            Optional filter for specific CRS types. Defaults to None.
-        object_name : str, optional
-            A string to filter results by CRS name. Defaults to None.
-        object_area_of_use : str, optional
-            A string to filter results by area of use. Defaults to None.
+class SearchCrsObjectsInput(BaseModel):
+    """Input schema for the search_crs_objects tool."""
+
+    bbox: BoundingBox | None = Field(
+        None,
+        description="Geographic bounding box (west, south, east, north in decimal degrees).",
+    )
+    object_type: list[str] | None = Field(
+        None,
+        description=(
+            "CRS type filter. Valid values: GEODETIC_REFERENCE_FRAME, PROJECTED_CRS, "
+            "GEOGRAPHIC_CRS, VERTICAL_CRS, GEOGRAPHIC_2D_CRS, GEOGRAPHIC_3D_CRS, "
+            "COMPOUND_CRS, ENGINEERING_CRS, BOUND_CRS, OTHER_CRS."
+        ),
+    )
+    object_name: str | None = Field(None, description="Filter results by CRS name.")
+    object_area_of_use: str | None = Field(None, description="Filter results by area of use name.")
+
+
+class GetBboxFromAreanameInput(BaseModel):
+    """Input schema for the get_bbox_from_areaname tool."""
+
+    area_name: str = Field(description="Name of the geographic area (e.g. 'Madrid', 'Argentina').")
+
+
+class LookupCrsInput(BaseModel):
+    """Input schema for the lookup_crs tool."""
+
+    epsg_code: str = Field(description="EPSG code to look up (e.g. '4326').")
+
+
+class TransformCoordinatesInput(BaseModel):
+    """Input schema for the transform_coordinates tool."""
+
+    query: str = Field(
+        description="Coordinates and EPSG codes: x,y,from_epsg,to_epsg (e.g. '-58.417,-34.611,4326,4937')."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _crs_info_to_result(crs_info) -> CRSResult | None:
+    """Convert a pyproj CRSInfo object to a CRSResult model.
+
+    Args:
+        crs_info: A pyproj CRSInfo named tuple.
 
     Returns:
-        list
-            A list of CRS objects applicable to the given area, or an error string on failure.
+        CRSResult instance, or None if conversion fails.
+    """
+    try:
+        area_bbox = None
+        if crs_info.area_of_use:
+            try:
+                area_bbox = BoundingBox(
+                    west=crs_info.area_of_use.west_lon_degree,
+                    south=crs_info.area_of_use.south_lat_degree,
+                    east=crs_info.area_of_use.east_lon_degree,
+                    north=crs_info.area_of_use.north_lat_degree,
+                )
+            except Exception:
+                pass
+        return CRSResult(
+            epsg_code=crs_info.code,
+            crs_name=crs_info.name,
+            area_bbox=area_bbox,
+        )
+    except Exception:
+        return None
+
+
+@tool(args_schema=SearchCrsObjectsInput)
+def search_crs_objects(
+    bbox: BoundingBox | None = None,
+    object_type: list[str] | None = None,
+    object_name: str | None = None,
+    object_area_of_use: str | None = None,
+) -> list[CRSResult] | str:
+    """Returns all applicable CRS objects for the given area of interest, including geographic,
+    projected, vertical, and other types.
+    Use this after getting bbox coordinates from get_bbox_from_areaname. The areaname can be used
+    as filter_text to narrow down results.
+
+    Args:
+        bbox: Validated geographic bounding box (west, south, east, north).
+        object_type: Optional CRS type filter strings (e.g. 'GEODETIC_REFERENCE_FRAME').
+        object_name: Optional filter by CRS name.
+        object_area_of_use: Optional filter by area of use name.
+
+    Returns:
+        List of CRSResult objects applicable to the given area, or an error string on failure.
     """
     try:
         aoi_bbox = None
         if bbox:
-            for field in ('west', 'south', 'east', 'north'):
-                if field not in bbox:
-                    raise InvalidBboxError(field, None)
-                try:
-                    float(bbox[field])
-                except (TypeError, ValueError):
-                    raise InvalidBboxError(field, bbox[field])
-
-            west = float(bbox['west'])
-            south = float(bbox['south'])
-            east = float(bbox['east'])
-            north = float(bbox['north'])
-
-            if not -90.0 <= south <= 90.0:
-                raise InvalidBboxError('south', bbox['south'])
-            if not -90.0 <= north <= 90.0:
-                raise InvalidBboxError('north', bbox['north'])
-            if not -180.0 <= west <= 180.0:
-                raise InvalidBboxError('west', bbox['west'])
-            if not -180.0 <= east <= 180.0:
-                raise InvalidBboxError('east', bbox['east'])
-            if south > north:
-                raise InvalidBboxError('south/north', f"{south}/{north}")
-
             aoi_bbox = aoi.AreaOfInterest(
-                west_lon_degree=west,
-                south_lat_degree=south,
-                east_lon_degree=east,
-                north_lat_degree=north,
+                west_lon_degree=bbox.west,
+                south_lat_degree=bbox.south,
+                east_lon_degree=bbox.east,
+                north_lat_degree=bbox.north,
             )
+
+        pj_types = None
+        if object_type:
+            try:
+                pj_types = [PJType[t] if isinstance(t, str) else t for t in object_type]
+            except KeyError as exc:
+                return f"Error: Invalid object_type value: {exc}"
 
         crs_list = database.query_crs_info(
             area_of_interest=aoi_bbox,
-            pj_types=object_type,
+            pj_types=pj_types,
             contains=False,
-            allow_deprecated=False
+            allow_deprecated=False,
         )
 
         if object_name or object_area_of_use:
@@ -97,14 +157,17 @@ def search_crs_objects(bbox: dict=None,
                 ))
             ]
 
-        return crs_list
+        results = [
+            r for r in (_crs_info_to_result(crs) for crs in crs_list) if r is not None
+        ]
+        return results
     except GeodeticAdvisorError as e:
         return f"Error: {e}"
     except Exception as e:
         return f"Error: {e}"
 
 
-@tool
+@tool(args_schema=GetBboxFromAreanameInput)
 def get_bbox_from_areaname(area_name: str) -> dict | str:
     """Searches for a geographic area by name in Nominatim and returns the bounding box.
 
@@ -169,7 +232,7 @@ def get_bbox_from_areaname(area_name: str) -> dict | str:
         return f"Error: {e}"
 
 
-@tool
+@tool(args_schema=LookupCrsInput)
 def lookup_crs(epsg_code: str) -> str:
     """Look up CRS metadata using an EPSG code.
 
@@ -201,7 +264,7 @@ def lookup_crs(epsg_code: str) -> str:
         return f"Error: {e}"
 
 
-@tool
+@tool(args_schema=TransformCoordinatesInput)
 def transform_coordinates(query: str) -> str:
     """Transform coordinates between two EPSG codes. Format: x,y,from_epsg,to_epsg
 

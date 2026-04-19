@@ -196,12 +196,12 @@ with col_chat:
                 chat_history=st.session_state.chat_history
             )
 
-            if result["success"]:
+            if result.success:
                 # Extract tool calls
-                tool_calls = extract_tool_calls(result)
+                tool_calls = result.tool_calls
 
                 # Format and add agent response to history
-                agent_response = result["response"]
+                agent_response = result.response
                 st.session_state.chat_history.append({
                     "role": "assistant",
                     "content": agent_response,
@@ -222,7 +222,7 @@ with col_chat:
 
                 st.rerun()
             else:
-                st.error(f"Error: {result['error']}")
+                st.error(f"Error: {result.error}")
 
     # Handle clear history button
     if clear_btn:
@@ -332,18 +332,17 @@ with col_map:
                                         chat_history=st.session_state.chat_history
                                     )
 
-                                    if result["success"]:
-                                        tool_calls = extract_tool_calls(result)
-                                        agent_response = result["response"]
+                                    if result.success:
+                                        agent_response = result.response
 
                                         st.session_state.chat_history.append({
                                             "role": "assistant",
                                             "content": agent_response,
-                                            "tool_calls": tool_calls
+                                            "tool_calls": result.tool_calls
                                         })
                                         st.rerun()
                                     else:
-                                        st.error(f"Agent error: {result.get('error')}")
+                                        st.error(f"Agent error: {result.error}")
                         except Exception as e:
                             st.error(f"Error processing rectangle: {str(e)}")
 

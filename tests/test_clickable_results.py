@@ -25,7 +25,7 @@ def test_parse_agent_results_from_text():
     print("Test 1: Parse results from text")
     print(f"Found {len(results)} results")
     for result in results:
-        print(f"  - {result['epsg_code']}: {result['crs_name']}")
+        print(f"  - {result.epsg_code}: {result.crs_name}")
 
     assert len(results) >= 3, "Should find at least 3 EPSG codes"
     print("✅ Test 1 passed!\n")
@@ -70,14 +70,14 @@ def test_parse_agent_results_from_tool_calls():
     print("Test 2: Parse results from tool calls")
     print(f"Found {len(results)} results")
     for result in results:
-        print(f"  - {result['epsg_code']}: {result['crs_name']}")
-        if result['area_bbox']:
-            bbox = result['area_bbox']
-            print(f"    Area: {bbox['west']:.1f}°W to {bbox['east']:.1f}°E, {bbox['south']:.1f}°S to {bbox['north']:.1f}°N")
+        print(f"  - {result.epsg_code}: {result.crs_name}")
+        if result.area_bbox:
+            bbox = result.area_bbox
+            print(f"    Area: {bbox.west:.1f}°W to {bbox.east:.1f}°E, {bbox.south:.1f}°S to {bbox.north:.1f}°N")
 
     assert len(results) == 2, "Should find exactly 2 results from tool output"
-    assert results[0]['epsg_code'] == '4326', "First result should be EPSG:4326"
-    assert results[0]['area_bbox'] is not None, "Result should have bounding box"
+    assert results[0].epsg_code == '4326', "First result should be EPSG:4326"
+    assert results[0].area_bbox is not None, "Result should have bounding box"
     print("✅ Test 2 passed!\n")
 
 
@@ -109,11 +109,11 @@ def test_parse_agent_results_mixed():
     print("Test 3: Parse results from mixed sources (tool + text)")
     print(f"Found {len(results)} results")
     for result in results:
-        print(f"  - {result['epsg_code']}: {result['crs_name']}")
+        print(f"  - {result.epsg_code}: {result.crs_name}")
 
     # Should have tool result + additional text results (without duplicates)
     assert len(results) >= 3, "Should find at least 3 results combining tool and text"
-    assert results[0]['epsg_code'] == '4326', "First result from tool should be present"
+    assert results[0].epsg_code == '4326', "First result from tool should be present"
     print("✅ Test 3 passed!\n")
 
 

@@ -6,9 +6,12 @@ from typing import Any, Optional
 import re
 
 from src.exceptions import AgentInvocationError, GeodeticAdvisorError, ResponseParsingError
+from src.models.agent import AgentResponse, ToolCall
+from src.models.chat import ChatMessage
+from src.models.geodesy import BoundingBox, CRSResult
 
 
-def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
+def invoke_geodetic_agent(query: str, chat_history: list = None) -> AgentResponse:
     """
     Invoke the geodetic agent with a user query.
 
@@ -17,11 +20,7 @@ def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
         chat_history: Optional list of previous messages for context
 
     Returns:
-        dict with keys:
-            - 'response': Agent's text response
-            - 'tool_calls': List of tool calls made by agent
-            - 'tool_results': Results from tool calls
-            - 'reasoning': Agent's internal reasoning
+        AgentResponse with response text, tool calls, success flag, and optional error.
     """
     try:
         # Convert chat history to messages format expected by LangGraph agent
@@ -66,34 +65,28 @@ def invoke_geodetic_agent(query: str, chat_history: list = None) -> dict:
                 if agent_response:
                     break
 
-        return {
-            "response": agent_response if agent_response else "No response from agent",
-            "tool_calls": extract_tool_calls(result),
-            "tool_results": extract_tool_results(result),
-            "reasoning": [],
-            "success": True
-        }
+        return AgentResponse(
+            response=agent_response if agent_response else "No response from agent",
+            tool_calls=extract_tool_calls(result),
+            success=True,
+        )
     except GeodeticAdvisorError as e:
-        return {
-            "response": str(e),
-            "tool_calls": [],
-            "tool_results": [],
-            "reasoning": [],
-            "success": False,
-            "error": str(e)
-        }
+        return AgentResponse(
+            response=str(e),
+            tool_calls=[],
+            success=False,
+            error=str(e),
+        )
     except Exception as e:
-        return {
-            "response": f"Error invoking agent: {str(e)}",
-            "tool_calls": [],
-            "tool_results": [],
-            "reasoning": [],
-            "success": False,
-            "error": str(e)
-        }
+        return AgentResponse(
+            response=f"Error invoking agent: {str(e)}",
+            tool_calls=[],
+            success=False,
+            error=str(e),
+        )
 
 
-def extract_tool_calls(agent_result: dict) -> list:
+def extract_tool_calls(agent_result: dict) -> list[ToolCall]:
     """
     Extract tool calls from agent result.
 
@@ -101,9 +94,9 @@ def extract_tool_calls(agent_result: dict) -> list:
         agent_result: Result dictionary from agent invocation
 
     Returns:
-        List of tool call dictionaries with 'tool', 'input', 'output' keys
+        List of ToolCall models.
     """
-    tool_calls = []
+    tool_calls: list[ToolCall] = []
 
     try:
         if "messages" in agent_result:
@@ -120,14 +113,14 @@ def extract_tool_calls(agent_result: dict) -> list:
                                 tool_name = getattr(tool_call, "name", "unknown")
                                 tool_args = getattr(tool_call, "args", {})
 
-                            tool_calls.append({
-                                "tool": tool_name,
-                                "input": tool_args,
-                                "output": ""
-                            })
-                        except Exception as e:
+                            tool_calls.append(ToolCall(
+                                tool=tool_name,
+                                input=tool_args,
+                                output="",
+                            ))
+                        except Exception:
                             continue
-    except Exception as e:
+    except Exception:
         pass
 
     return tool_calls
@@ -362,7 +355,7 @@ def format_crs_results(text: str) -> str:
     return '\n'.join(formatted_lines)
 
 
-def parse_agent_results(response: str, tool_calls: list = None) -> list:
+def parse_agent_results(response: str, tool_calls: list = None) -> list[CRSResult]:
     """
     Parse agent results and extract CRS entries with EPSG codes and bounding boxes.
 
@@ -373,25 +366,22 @@ def parse_agent_results(response: str, tool_calls: list = None) -> list:
 
     Args:
         response: Agent's text response string.
-        tool_calls: Optional list of tool call dicts with 'tool' and 'output' keys.
+        tool_calls: Optional list of ToolCall models or legacy dicts.
 
     Returns:
-        List of dicts, each with:
-            - 'epsg_code': str  (e.g. '4326')
-            - 'crs_name':  str
-            - 'area_bbox': dict | None  (keys: west, south, east, north)
+        List of CRSResult models.
     """
     import json
 
-    results: list[dict] = []
+    results: list[CRSResult] = []
     seen_codes: set[str] = set()
 
     # --- 1. Extract structured results from tool calls (highest fidelity) ---
     if tool_calls:
         for call in tool_calls:
             try:
-                tool_name = call.get("tool", "") if isinstance(call, dict) else getattr(call, "tool", "")
-                output = call.get("output", "") if isinstance(call, dict) else getattr(call, "output", "")
+                tool_name = call.tool if isinstance(call, ToolCall) else call.get("tool", "")
+                output = call.output if isinstance(call, ToolCall) else call.get("output", "")
 
                 if tool_name != "search_crs_objects" or not output:
                     continue
@@ -401,24 +391,39 @@ def parse_agent_results(response: str, tool_calls: list = None) -> list:
                     continue
 
                 for record in records:
-                    code = str(record.get("EPSG_CODE", "")).strip()
-                    name = str(record.get("CRS_NAME", "")).strip()
-                    bbox_raw = record.get("AREA_BBOX")
+                    if isinstance(record, CRSResult):
+                        if record.epsg_code not in seen_codes:
+                            results.append(record)
+                            seen_codes.add(record.epsg_code)
+                        continue
 
-                    bbox = None
+                    # Support both snake_case (new) and UPPER_CASE (legacy) key formats
+                    code = str(
+                        record.get("epsg_code") or record.get("EPSG_CODE", "")
+                    ).strip()
+                    name = str(
+                        record.get("crs_name") or record.get("CRS_NAME", "")
+                    ).strip()
+                    bbox_raw = record.get("area_bbox") or record.get("AREA_BBOX")
+
+                    area_bbox = None
                     if isinstance(bbox_raw, dict):
                         try:
-                            bbox = {
-                                "west": float(bbox_raw["west"]),
-                                "south": float(bbox_raw["south"]),
-                                "east": float(bbox_raw["east"]),
-                                "north": float(bbox_raw["north"]),
-                            }
-                        except (KeyError, ValueError, TypeError):
+                            area_bbox = BoundingBox(
+                                west=float(bbox_raw["west"]),
+                                south=float(bbox_raw["south"]),
+                                east=float(bbox_raw["east"]),
+                                north=float(bbox_raw["north"]),
+                            )
+                        except Exception:
                             pass
 
                     if code and code not in seen_codes:
-                        results.append({"epsg_code": code, "crs_name": name, "area_bbox": bbox})
+                        results.append(CRSResult(
+                            epsg_code=code,
+                            crs_name=name,
+                            area_bbox=area_bbox,
+                        ))
                         seen_codes.add(code)
             except (json.JSONDecodeError, AttributeError, TypeError):
                 continue
@@ -433,7 +438,11 @@ def parse_agent_results(response: str, tool_calls: list = None) -> list:
                 surrounding = response[start:match.start()]
                 name_match = re.search(r'([A-Za-z0-9][\w\s\-\+\/\.]*?)\s*[\(\-]?\s*$', surrounding)
                 name = name_match.group(1).strip() if name_match else f"EPSG:{code}"
-                results.append({"epsg_code": code, "crs_name": name, "area_bbox": None})
+                results.append(CRSResult(
+                    epsg_code=code,
+                    crs_name=name,
+                    area_bbox=None,
+                ))
                 seen_codes.add(code)
 
     return results
