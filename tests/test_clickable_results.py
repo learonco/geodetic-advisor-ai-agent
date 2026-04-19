@@ -9,7 +9,7 @@ import json
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from src.webui.chat_utils import parse_agent_results
+from src.webui.chat_utils import parse_agent_results  # noqa: E402
 
 def test_parse_agent_results_from_text():
     """Test parsing results from text response."""

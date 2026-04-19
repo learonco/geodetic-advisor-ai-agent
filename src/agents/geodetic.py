@@ -68,29 +68,3 @@ geodetic_agent = create_agent(
     ),
 )
 
-
-# response = geodetic_agent.invoke(
-#     {"messages": [{"role": "user", "content": "What is EPSG:4326?"}]}
-# )
-# print(response['messages'][2].content)
-
-# response = geodetic_agent.invoke(
-#     { "messages": [ { "role": "user", "content": "Transform -58.417,-34.611 from EPSG:4326 to EPSG:4937" } ] }
-# )
-# print(response['messages'][2].content)
-
-# response = geodetic_agent.invoke({
-#     "messages": [
-#         {"role": "user",
-#          "content": "List the names of the applicable datums for Neuquen."}
-#     ]
-# })
-
-# response = geodetic_agent.invoke({
-#     "messages": [
-#         {"role": "user",
-#          "content": "Get me the details of the datum Campo Inchauspe."}
-#     ]
-# })
-
-# print(response["messages"])

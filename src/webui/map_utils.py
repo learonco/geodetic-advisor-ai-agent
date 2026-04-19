@@ -7,7 +7,7 @@ import pydeck as pdk
 from src.models.geodesy import BoundingBox, CRSResult
 
 # Default world-view when no bbox is provided
-_DEFAULT_VIEW = pdk.ViewState(latitude=20, longitude=0, zoom=2, pitch=0)
+_DEFAULT_VIEW = pdk.ViewState(latitude=20, longitude=0, zoom=1, pitch=0)
 
 _POLYGON_FILL_COLOR = [100, 149, 237, 120]   # cornflower-blue, semi-transparent
 _POLYGON_LINE_COLOR = [70, 105, 200, 200]
@@ -125,7 +125,7 @@ def render_map(
     return pdk.Deck(
         layers=[polygon_layer, marker_layer],
         initial_view_state=view,
-        map_style="light",
+        map_style="dark",
         tooltip={
             "text": "EPSG:{epsg_code}\n{crs_name}",
         },
