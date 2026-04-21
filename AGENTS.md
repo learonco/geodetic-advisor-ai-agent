@@ -11,6 +11,9 @@
 - Add Google-Style docsting to classes, modules and functions
 - Implement using the red/greed TDD pattern
 
+# Git Workflow
+- If you are asked to work on `main`, stop and request a new branch.
+
 # Commands
 - Run: `uv run`
 - Run webui: `uv run streamlit run ./src/webui/app.py`
