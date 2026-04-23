@@ -113,7 +113,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = []          # list[dict] role/content for display
 
 if "agent_state" not in st.session_state:
-    st.session_state.agent_state = {"last_bbox": None, "last_results": []}
+    st.session_state.agent_state = {"last_bbox": None, "last_results": [], "last_geojson": None}
 
 # ---------------------------------------------------------------------------
 # Layout: map left (55 %) | chat right (45 %)
@@ -126,6 +126,7 @@ col_map, col_chat = st.columns([0.55, 0.45])
 with col_map:
     last_results = st.session_state.agent_state.get("last_results", [])
     last_bbox_raw = st.session_state.agent_state.get("last_bbox")
+    last_geojson = st.session_state.agent_state.get("last_geojson")
 
     bbox_model: BoundingBox | None = None
     if isinstance(last_bbox_raw, dict):
@@ -134,7 +135,7 @@ with col_map:
         except Exception:
             bbox_model = None
 
-    st.pydeck_chart(render_map(last_results, bbox_model), use_container_width=True, height=800)
+    st.pydeck_chart(render_map(last_results, bbox_model, geojson=last_geojson), use_container_width=True, height=800)
 
     if last_results:
         st.caption(f"{len(last_results)} CRS result(s) — hover for details.")
@@ -154,7 +155,7 @@ with col_chat:
     if st.session_state.messages:
         if st.button("🗑️ Clear conversation", use_container_width=True):
             st.session_state.messages = []
-            st.session_state.agent_state = {"last_bbox": None, "last_results": []}
+            st.session_state.agent_state = {"last_bbox": None, "last_results": [], "last_geojson": None}
             st.rerun()
 
     # Chat input — at the bottom of the right column
@@ -180,13 +181,16 @@ if user_input:
             result.response, result.tool_calls
         )
 
-        if map_detection.get("has_results"):
+        if map_detection.get("has_map_data"):
             crs_results = parse_agent_results(
                 result.response,
                 [tc.__dict__ for tc in result.tool_calls],
             )
             if crs_results:
                 st.session_state.agent_state["last_results"] = crs_results
+
+        if map_detection.get("data_type") == "geojson":
+            st.session_state.agent_state["last_geojson"] = map_detection["data"]
 
         if map_detection.get("data_type") == "bbox":
             try:

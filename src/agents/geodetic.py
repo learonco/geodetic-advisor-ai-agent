@@ -7,6 +7,7 @@ from src.tools.geodesy import (
     lookup_crs,
     search_crs_objects
 )
+from src.tools.plot import plot_geojson
 
 
 llm = ChatGoogleGenerativeAI(
@@ -18,7 +19,7 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=os.getenv("GEMINI_API_KEY"),
 )
 
-tools = [lookup_crs, transform_coordinates, get_bbox_from_areaname, search_crs_objects]
+tools = [lookup_crs, transform_coordinates, get_bbox_from_areaname, search_crs_objects, plot_geojson]
 
 geodetic_agent = create_agent(
     tools=tools,
@@ -64,7 +65,14 @@ geodetic_agent = create_agent(
             optionally use get_bbox_from_areaname to get the bounding box and narrow down results.
         - If the user asks for a specific EPSG code, use lookup_crs to get its metadata.
         - If the user asks for coordinate transformation, use transform_coordinates with the format x,y,from_epsg,to_epsg.
+        - If the user asks to show, visualise, or plot a geographic area or CRS area of use on the map:
+            You MUST call plot_geojson. Follow these steps exactly:
+            1. Use lookup_crs or search_crs_objects to obtain the area of use bounding box
+               (west, south, east, north in decimal degrees).
+            2. Build a GeoJSON string with this exact structure (a FeatureCollection with one Polygon):
+               {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[west,south],[east,south],[east,north],[west,north],[west,south]]]},"properties":{"name":"<CRS name>"}}]}
+            3. Call plot_geojson with that GeoJSON string.
+            Do NOT skip plot_geojson. Do NOT just describe the area — you must call the tool.
         """
     ),
 )
-

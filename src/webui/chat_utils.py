@@ -1,6 +1,8 @@
 """Chat utilities for interacting with the geodetic agent."""
 
-from langchain_core.messages import HumanMessage, AIMessage
+import json
+
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from src.agents.geodetic import geodetic_agent
 import re
 
@@ -97,27 +99,42 @@ def extract_tool_calls(agent_result: dict) -> list[ToolCall]:
     tool_calls: list[ToolCall] = []
 
     try:
-        if "messages" in agent_result:
-            for msg in agent_result["messages"]:
-                if hasattr(msg, "tool_calls") and msg.tool_calls:
-                    for tool_call in msg.tool_calls:
-                        try:
-                            # Handle both dictionary and object formats
-                            if isinstance(tool_call, dict):
-                                tool_name = tool_call.get("name", "unknown")
-                                tool_args = tool_call.get("args", {})
-                            else:
-                                # Handle object with attributes
-                                tool_name = getattr(tool_call, "name", "unknown")
-                                tool_args = getattr(tool_call, "args", {})
+        if "messages" not in agent_result:
+            return tool_calls
 
-                            tool_calls.append(ToolCall(
-                                tool=tool_name,
-                                input=tool_args,
-                                output="",
-                            ))
-                        except Exception:
-                            continue
+        messages = agent_result["messages"]
+
+        # Build a map from tool_call_id -> ToolMessage content so we can
+        # populate outputs when iterating over AIMessage.tool_calls.
+        tool_outputs: dict[str, str] = {}
+        for msg in messages:
+            if isinstance(msg, ToolMessage):
+                msg_id = getattr(msg, "tool_call_id", None)
+                if msg_id is not None:
+                    tool_outputs[msg_id] = msg.content if isinstance(msg.content, str) else str(msg.content)
+
+        for msg in messages:
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    try:
+                        if isinstance(tool_call, dict):
+                            tool_name = tool_call.get("name", "unknown")
+                            tool_args = tool_call.get("args", {})
+                            call_id = tool_call.get("id", "")
+                        else:
+                            tool_name = getattr(tool_call, "name", "unknown")
+                            tool_args = getattr(tool_call, "args", {})
+                            call_id = getattr(tool_call, "id", "")
+
+                        output = tool_outputs.get(call_id, "")
+
+                        tool_calls.append(ToolCall(
+                            tool=tool_name,
+                            input=tool_args,
+                            output=output,
+                        ))
+                    except Exception:
+                        continue
     except Exception:
         pass
 
@@ -172,7 +189,8 @@ def detect_map_relevant_response(agent_response: str, tool_calls: list) -> dict:
     data_type = None
     data = None
 
-    # Check tool calls for map-relevant tools
+    # Check tool calls for map-relevant tools.
+    # plot_geojson has highest priority: once found, stop scanning.
     if tool_calls:
         for tool_call in tool_calls:
             try:
@@ -184,13 +202,22 @@ def detect_map_relevant_response(agent_response: str, tool_calls: list) -> dict:
                     tool_name = getattr(tool_call, "tool", "")
                     output = getattr(tool_call, "output", "")
 
-                if tool_name == "search_crs_objects":
+                if tool_name == "plot_geojson":
+                    try:
+                        parsed = json.loads(output)
+                        data_type = "geojson"
+                        data = parsed
+                        has_map_data = True
+                        break  # highest priority — stop scanning
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                elif tool_name == "search_crs_objects" and data_type != "geojson":
                     data_type = "crs_results"
                     data = output
-                elif tool_name == "transform_coordinates":
+                elif tool_name == "transform_coordinates" and data_type not in ("geojson", "crs_results"):
                     data_type = "coordinates"
                     data = output
-                elif tool_name == "get_bbox_from_areaname":
+                elif tool_name == "get_bbox_from_areaname" and data_type not in ("geojson", "crs_results", "coordinates"):
                     data_type = "bbox"
                     data = output
             except Exception:

@@ -122,3 +122,94 @@ class TestDetectMapRelevantResponse:
         tool_calls = [{"tool": "search_crs_objects", "output": "[]"}]
         result = cu.detect_map_relevant_response("some response", tool_calls)
         assert result["data_type"] == "crs_results"
+
+
+class TestDetectMapRelevantResponseGeoJson:
+    _GEOJSON_STR = json.dumps({
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [-65.0, -40.0], [-60.0, -40.0],
+                        [-60.0, -35.0], [-65.0, -35.0],
+                        [-65.0, -40.0],
+                    ]],
+                },
+                "properties": {"name": "POSGAR 2007"},
+            }
+        ],
+    })
+
+    def test_plot_geojson_tool_call_sets_geojson_data_type(self):
+        cu = _load_chat_utils()
+        tool_calls = [{"tool": "plot_geojson", "output": self._GEOJSON_STR}]
+        result = cu.detect_map_relevant_response("Here is the area.", tool_calls)
+        assert result["data_type"] == "geojson"
+
+    def test_plot_geojson_tool_call_has_map_data(self):
+        cu = _load_chat_utils()
+        tool_calls = [{"tool": "plot_geojson", "output": self._GEOJSON_STR}]
+        result = cu.detect_map_relevant_response("Here is the area.", tool_calls)
+        assert result["has_map_data"] is True
+
+    def test_plot_geojson_data_is_parsed_dict(self):
+        cu = _load_chat_utils()
+        tool_calls = [{"tool": "plot_geojson", "output": self._GEOJSON_STR}]
+        result = cu.detect_map_relevant_response("Here is the area.", tool_calls)
+        assert isinstance(result["data"], dict)
+        assert result["data"]["type"] == "FeatureCollection"
+
+    def test_plot_geojson_tool_call_object_format(self):
+        """ToolCall objects (not dicts) are also handled."""
+        from src.models.agent import ToolCall
+        cu = _load_chat_utils()
+        tool_calls = [ToolCall(tool="plot_geojson", input={}, output=self._GEOJSON_STR)]
+        result = cu.detect_map_relevant_response("Here is the area.", tool_calls)
+        assert result["data_type"] == "geojson"
+
+
+class TestExtractToolCalls:
+    """Tests that extract_tool_calls populates tool outputs from ToolMessages."""
+
+    _GEOJSON_STR = json.dumps({"type": "FeatureCollection", "features": []})
+
+    def _make_ai_message(self, tool_call_id: str, tool_name: str, args: dict):
+        from langchain_core.messages import AIMessage
+        tc = {"id": tool_call_id, "name": tool_name, "args": args, "type": "tool_call"}
+        return AIMessage(content="", tool_calls=[tc])
+
+    def _make_tool_message(self, tool_call_id: str, content: str):
+        from langchain_core.messages import ToolMessage
+        return ToolMessage(content=content, tool_call_id=tool_call_id)
+
+    def test_output_populated_from_tool_message(self):
+        cu = _load_chat_utils()
+        ai_msg = self._make_ai_message("id1", "plot_geojson", {"geojson": self._GEOJSON_STR})
+        tm = self._make_tool_message("id1", self._GEOJSON_STR)
+        result = cu.extract_tool_calls({"messages": [ai_msg, tm]})
+        assert len(result) == 1
+        assert result[0].tool == "plot_geojson"
+        assert result[0].output == self._GEOJSON_STR
+
+    def test_output_empty_when_no_tool_message(self):
+        cu = _load_chat_utils()
+        ai_msg = self._make_ai_message("id2", "lookup_crs", {"epsg_code": "5340"})
+        result = cu.extract_tool_calls({"messages": [ai_msg]})
+        assert len(result) == 1
+        assert result[0].output == ""
+
+    def test_multiple_tool_calls_matched_correctly(self):
+        cu = _load_chat_utils()
+        ai_msg = self._make_ai_message("id3", "search_crs_objects", {"object_name": "POSGAR 2007"})
+        ai_msg2 = self._make_ai_message("id4", "plot_geojson", {"geojson": self._GEOJSON_STR})
+        tm3 = self._make_tool_message("id3", "search output")
+        tm4 = self._make_tool_message("id4", self._GEOJSON_STR)
+        result = cu.extract_tool_calls({"messages": [ai_msg, tm3, ai_msg2, tm4]})
+        assert len(result) == 2
+        assert result[0].tool == "search_crs_objects"
+        assert result[0].output == "search output"
+        assert result[1].tool == "plot_geojson"
+        assert result[1].output == self._GEOJSON_STR

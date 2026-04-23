@@ -196,3 +196,102 @@ class TestRenderMap:
         deck = render_map([], None)
         # pydeck stores tooltip as _tooltip internally
         assert deck._tooltip is not None
+
+    def test_tooltip_shows_authority_code(self):
+        from src.webui.map_utils import render_map
+
+        deck = render_map([], None)
+        tooltip_text = deck._tooltip.get("text", "")
+        assert "{epsg_code}" in tooltip_text
+
+    def test_tooltip_shows_crs_name(self):
+        from src.webui.map_utils import render_map
+
+        deck = render_map([], None)
+        tooltip_text = deck._tooltip.get("text", "")
+        assert "{crs_name}" in tooltip_text
+
+    def test_tooltip_labels_authority_and_name(self):
+        from src.webui.map_utils import render_map
+
+        deck = render_map([], None)
+        tooltip_text = deck._tooltip.get("text", "")
+        assert "Authority" in tooltip_text
+        assert "Name" in tooltip_text
+
+
+# ---------------------------------------------------------------------------
+# build_geojson_layer
+# ---------------------------------------------------------------------------
+
+_GEOJSON_DICT = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [-65.0, -40.0],
+                    [-60.0, -40.0],
+                    [-60.0, -35.0],
+                    [-65.0, -35.0],
+                    [-65.0, -40.0],
+                ]],
+            },
+            "properties": {"name": "Test area"},
+        }
+    ],
+}
+
+
+class TestBuildGeoJsonLayer:
+    def test_returns_pydeck_layer(self):
+        import pydeck as pdk
+        from src.webui.map_utils import build_geojson_layer
+
+        layer = build_geojson_layer(_GEOJSON_DICT)
+        assert isinstance(layer, pdk.Layer)
+
+    def test_layer_type_is_geojson(self):
+        from src.webui.map_utils import build_geojson_layer
+
+        layer = build_geojson_layer(_GEOJSON_DICT)
+        assert "GeoJson" in layer.type
+
+    def test_layer_is_pickable(self):
+        from src.webui.map_utils import build_geojson_layer
+
+        layer = build_geojson_layer(_GEOJSON_DICT)
+        assert layer.pickable is True
+
+    def test_layer_data_is_geojson_dict(self):
+        from src.webui.map_utils import build_geojson_layer
+
+        layer = build_geojson_layer(_GEOJSON_DICT)
+        assert layer.data == _GEOJSON_DICT
+
+
+# ---------------------------------------------------------------------------
+# render_map with geojson
+# ---------------------------------------------------------------------------
+
+class TestRenderMapWithGeoJson:
+    def test_render_map_with_geojson_adds_layer(self):
+        from src.webui.map_utils import render_map
+
+        deck = render_map([], None, geojson=_GEOJSON_DICT)
+        # Polygon layer + Scatterplot layer + GeoJson layer
+        assert len(deck.layers) == 3
+
+    def test_render_map_without_geojson_has_two_layers(self):
+        from src.webui.map_utils import render_map
+
+        deck = render_map([], None)
+        assert len(deck.layers) == 2
+
+    def test_render_map_geojson_none_has_two_layers(self):
+        from src.webui.map_utils import render_map
+
+        deck = render_map([], None, geojson=None)
+        assert len(deck.layers) == 2

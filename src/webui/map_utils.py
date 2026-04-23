@@ -12,6 +12,8 @@ _DEFAULT_VIEW = pdk.ViewState(latitude=20, longitude=0, zoom=1, pitch=0)
 _POLYGON_FILL_COLOR = [100, 149, 237, 120]   # cornflower-blue, semi-transparent
 _POLYGON_LINE_COLOR = [70, 105, 200, 200]
 _MARKER_COLOR = [220, 50, 50, 200]           # red markers
+_GEOJSON_FILL_COLOR = [255, 165, 0, 150]     # orange, semi-transparent
+_GEOJSON_LINE_COLOR = [255, 140, 0, 230]
 
 
 def build_crs_polygon_layer(results: list[CRSResult]) -> pdk.Layer:
@@ -40,6 +42,7 @@ def build_crs_polygon_layer(results: list[CRSResult]) -> pdk.Layer:
             "epsg_code": r.epsg_code,
             "crs_name": r.crs_name,
             "polygon": polygon,
+            "properties": {"epsg_code": r.epsg_code, "crs_name": r.crs_name},
         })
 
     return pdk.Layer(
@@ -78,6 +81,7 @@ def build_crs_marker_layer(results: list[CRSResult]) -> pdk.Layer:
             "crs_name": r.crs_name,
             "lon": lon,
             "lat": lat,
+            "properties": {"epsg_code": r.epsg_code, "crs_name": r.crs_name},
         })
 
     return pdk.Layer(
@@ -93,9 +97,32 @@ def build_crs_marker_layer(results: list[CRSResult]) -> pdk.Layer:
     )
 
 
+def build_geojson_layer(geojson_dict: dict) -> pdk.Layer:
+    """Build a GeoJsonLayer from a GeoJSON dict.
+
+    Args:
+        geojson_dict: A parsed GeoJSON object (any RFC 7946 type).
+
+    Returns:
+        A pydeck Layer of type GeoJsonLayer.
+    """
+    return pdk.Layer(
+        "GeoJsonLayer",
+        data=geojson_dict,
+        filled=True,
+        stroked=True,
+        get_fill_color=_GEOJSON_FILL_COLOR,
+        get_line_color=_GEOJSON_LINE_COLOR,
+        line_width_min_pixels=2,
+        pickable=True,
+        auto_highlight=True,
+    )
+
+
 def render_map(
     results: list[CRSResult],
     bbox: Optional[BoundingBox],
+    geojson: Optional[dict] = None,
 ) -> pdk.Deck:
     """Render a pydeck Deck with CRS polygons and markers.
 
@@ -105,6 +132,7 @@ def render_map(
     Args:
         results: CRS results to visualise.
         bbox: Optional bounding box to centre the view on.
+        geojson: Optional parsed GeoJSON dict to overlay as a GeoJsonLayer.
 
     Returns:
         A pdk.Deck ready to pass to ``st.pydeck_chart``.
@@ -121,13 +149,16 @@ def render_map(
 
     polygon_layer = build_crs_polygon_layer(results)
     marker_layer = build_crs_marker_layer(results)
+    layers = [polygon_layer, marker_layer]
+    if geojson is not None:
+        layers.append(build_geojson_layer(geojson))
 
     return pdk.Deck(
-        layers=[polygon_layer, marker_layer],
+        layers=layers,
         initial_view_state=view,
         map_style="dark",
         tooltip={
-            "text": "EPSG:{epsg_code}\n{crs_name}",
+            "text": "Authority Code: EPSG:{epsg_code}\nCRS Name: {crs_name}",
         },
     )
 
